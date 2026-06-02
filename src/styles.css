@@ -1,0 +1,580 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: #0b0c1c;
+  color: #fff;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+button {
+  background: #f2c14e;
+  color: #16183b;
+  border: 0;
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button.ghost {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+button.link {
+  background: none;
+  color: #f2c14e;
+  font-weight: 600;
+  padding: 6px;
+}
+
+/* ---------- Join screen ---------- */
+.join {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 25%, #1b1e44, #0b0c1c);
+}
+.join-card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 28px;
+  border-radius: 18px;
+}
+.join-card h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  text-align: center;
+}
+.join-card .sub {
+  margin: -6px 0 6px;
+  text-align: center;
+  opacity: 0.7;
+}
+.join-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+.join-card .opt {
+  opacity: 0.55;
+  font-weight: 400;
+}
+.join-card input,
+.join-card select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 1rem;
+}
+.join-card .primary {
+  margin-top: 6px;
+}
+.join-card .note {
+  font-size: 0.78rem;
+  opacity: 0.6;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ---------- App shell ---------- */
+.app {
+  position: relative;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 5;
+}
+.topbar .brand {
+  font-weight: 800;
+}
+.topbar .spacer {
+  flex: 1;
+}
+.topbar .me {
+  opacity: 0.8;
+  font-size: 0.85rem;
+}
+.mode-pill {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.mode-pill.ceremony {
+  background: rgba(242, 193, 78, 0.25);
+  color: #f2c14e;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.dot.on {
+  background: #7cfc9b;
+}
+.dot.off {
+  background: #ff8080;
+}
+
+.center-msg {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+.cam-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  z-index: 6;
+}
+
+/* ---------- Gallery ---------- */
+.gallery {
+  flex: 1;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  overflow: auto;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-content: start;
+}
+.tile {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #111327;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid transparent;
+}
+.tile.current {
+  border-color: #f2c14e;
+  box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.3);
+}
+.tile video,
+.tile canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tile-cap {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tile-cap .flag {
+  font-size: 1rem;
+}
+.prof-badge,
+.grad-badge {
+  font-size: 0.68rem;
+  background: rgba(242, 193, 78, 0.3);
+  color: #f2c14e;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+/* ---------- Spotlight ---------- */
+.spotlight {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: radial-gradient(circle at 50% 40%, #1a1d46, #070813);
+}
+.spot-tiles {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  max-width: 1200px;
+}
+.spot-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.spot-col .tile.big {
+  aspect-ratio: 4 / 3;
+}
+.spot-label {
+  text-align: center;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+}
+.spot-vs {
+  opacity: 0.6;
+  font-style: italic;
+  white-space: nowrap;
+  align-self: center;
+}
+.spot-caption {
+  text-align: center;
+}
+.spot-name {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+.spot-sub {
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+/* ---------- MC panel ---------- */
+.mc {
+  position: absolute;
+  top: 56px;
+  right: 12px;
+  width: 290px;
+  max-height: calc(100vh - 70px);
+  overflow: auto;
+  background: rgba(12, 14, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  z-index: 7;
+  backdrop-filter: blur(8px);
+}
+.mc.collapsed {
+  width: auto;
+}
+.mc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  background: inherit;
+}
+.mc-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mc-seg {
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.mc-seg button {
+  flex: 1;
+  background: transparent;
+  color: #fff;
+  border-radius: 0;
+}
+.mc-seg button.sel {
+  background: #f2c14e;
+  color: #16183b;
+}
+.mc-row {
+  display: flex;
+  gap: 8px;
+}
+.mc-row button {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.mc-row button.commit {
+  background: #7cfc9b;
+  color: #0b3d1f;
+}
+.mc-section {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+.mc-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  counter-reset: r;
+}
+.mc-roster li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+.mc-roster li.cur {
+  background: rgba(242, 193, 78, 0.2);
+  outline: 1px solid rgba(242, 193, 78, 0.5);
+}
+.mc-roster .r-name {
+  cursor: pointer;
+  flex: 1;
+}
+.mc-roster .r-name em {
+  color: #7cfc9b;
+  font-style: normal;
+}
+.mc-roster .r-actions {
+  display: flex;
+  gap: 2px;
+}
+.mc-roster .r-actions button {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 2px 7px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+.mc-add {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px;
+}
+.mc-add summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.mc-add input {
+  width: 100%;
+  margin-top: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 7px 9px;
+  border-radius: 8px;
+}
+.mc-add button {
+  width: 100%;
+  margin-top: 8px;
+}
+.mc-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.mc-camstat {
+  margin-left: auto;
+  opacity: 0.6;
+  font-size: 0.75rem;
+}
+.mc-tip {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
+/* ---------- Countdown + banner ---------- */
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 9;
+}
+.countdown span {
+  font-size: 22vh;
+  font-weight: 900;
+  color: #f2c14e;
+  text-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  animation: cd 1s ease;
+}
+@keyframes cd {
+  from {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.banner {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(242, 193, 78, 0.96);
+  color: #16183b;
+  font-size: 1.5rem;
+  font-weight: 800;
+  padding: 16px 28px;
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  animation: pop 0.4s ease;
+  text-align: center;
+}
+@keyframes pop {
+  from {
+    transform: translateX(-50%) scale(0.7);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---------- Solo AR demo ---------- */
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.view {
+  max-width: 100%;
+  max-height: 100vh;
+  display: block;
+  background: #000;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 30%, #1b1e44, #0b0c1c);
+}
+.overlay h1 {
+  font-size: 2.2rem;
+  margin: 0;
+}
+.overlay p {
+  max-width: 540px;
+  margin: 0;
+  opacity: 0.85;
+}
+.overlay .hint {
+  font-size: 0.95rem;
+}
+.overlay .error {
+  color: #ff8080;
+}
+.controls {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+}
+.controls button {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.controls button:first-child {
+  background: #f2c14e;
+  color: #16183b;
+}
+.hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  gap: 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.hud span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.hud .ok {
+  color: #7cfc9b;
+}
+.hud .no {
+  color: #ff8080;
+  opacity: 0.6;
+}
+.hud .state {
+  background: rgba(242, 193, 78, 0.25);
+  color: #f2c14e;
+}
+.tip {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .spot-tiles {
+    flex-direction: column;
+  }
+  .mc {
+    width: calc(100vw - 24px);
+  }
+}
