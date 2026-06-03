@@ -76,18 +76,30 @@ device, and confirm the camera + gesture on the actual machines.
 
 ## Quick alternative: tunnel (no deploy)
 
-For a fast cross-device test without deploying, run locally and expose both ports over HTTPS:
+For a fast run with remote users without deploying. Requires cloudflared
+(`winget install --id Cloudflare.cloudflared`).
+
+**Easy way** — two terminals:
 
 ```bash
-npm run dev:all                      # web :5173, server :3001
-# in two more terminals (cloudflared):
-cloudflared tunnel --url http://localhost:5173   # -> https web URL
-cloudflared tunnel --url http://localhost:3001   # -> https server URL
+npm run dev:all     # terminal 1: web :5173 + server :3001
+npm run share       # terminal 2: starts both tunnels, prints ONE share link
 ```
 
-Then open the web tunnel URL with the server tunnel as the WS override:
-`https://<web>.trycloudflare.com/?ws=wss://<server>.trycloudflare.com`
-(camera works because the tunnel is HTTPS).
+`npm run share` prints a ready link like
+`https://<web>.trycloudflare.com/?ws=wss://<server>.trycloudflare.com`. Send it to remote
+users; they pick a role + name and join (HTTPS, so the camera works).
+
+**Manual way** — run two tunnels yourself and combine the URLs:
+
+```bash
+cloudflared tunnel --url http://localhost:5173   # -> https WEB url
+cloudflared tunnel --url http://localhost:3001   # -> https SERVER url
+```
+Link: `https://<web>.trycloudflare.com/?ws=wss://<server>.trycloudflare.com`
+
+> Tunnel URLs are random and change on every restart, so re-share the link each session.
+> Set `VITE_DAILY_ROOM_URL` in `.env.local` (then restart `dev:all`) so video is auto-joined.
 
 ---
 
