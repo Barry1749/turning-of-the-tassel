@@ -6,15 +6,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { REST_ANGLE } from './tassel';
 
 const WS_URL = (() => {
-  // ?ws=wss://... overrides everything (handy for pointing a deployed app at a tunnel)
+  // ?ws=wss://... overrides everything (e.g. a deployed app pointed at a tunnel)
   const override = new URLSearchParams(location.search).get('ws');
   if (override) return override;
+  // Production (static host) must set this to the deployed wss:// server.
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  // Dev / tunnel: reach the server same-origin at /ws (Vite proxies it to :3001).
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  if (location.protocol === 'https:') {
-    console.warn('VITE_WS_URL is not set — set it to your deployed wss:// server, or the ceremony will not connect.');
-  }
-  return `${proto}//${location.hostname}:3001`;
+  return `${proto}//${location.host}/ws`;
 })();
 
 export function useCeremony({ role, name, enabled = true }) {

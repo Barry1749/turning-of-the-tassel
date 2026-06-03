@@ -79,24 +79,19 @@ device, and confirm the camera + gesture on the actual machines.
 For a fast run with remote users without deploying. Requires cloudflared
 (`winget install --id Cloudflare.cloudflared`).
 
-**Easy way** — two terminals:
+Two terminals:
 
 ```bash
 npm run dev:all     # terminal 1: web :5173 + server :3001
-npm run share       # terminal 2: starts both tunnels, prints ONE share link
+npm run share       # terminal 2: starts ONE tunnel, prints the share link
 ```
 
-`npm run share` prints a ready link like
-`https://<web>.trycloudflare.com/?ws=wss://<server>.trycloudflare.com`. Send it to remote
-users; they pick a role + name and join (HTTPS, so the camera works).
+`npm run share` prints a link like `https://<web>.trycloudflare.com`. Send it **as-is** —
+the ceremony server is reached through the same tunnel at `/ws` (Vite proxies it), so
+there's nothing else to paste. Remote users open it, pick a role + name, and join (HTTPS,
+so the camera works).
 
-**Manual way** — run two tunnels yourself and combine the URLs:
-
-```bash
-cloudflared tunnel --url http://localhost:5173   # -> https WEB url
-cloudflared tunnel --url http://localhost:3001   # -> https SERVER url
-```
-Link: `https://<web>.trycloudflare.com/?ws=wss://<server>.trycloudflare.com`
+(Manual equivalent: `cloudflared tunnel --url http://localhost:5173`, then share that URL.)
 
 > Tunnel URLs are random and change on every restart, so re-share the link each session.
 > Set `VITE_DAILY_ROOM_URL` in `.env.local` (then restart `dev:all`) so video is auto-joined.
