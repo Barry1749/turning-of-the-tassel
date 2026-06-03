@@ -40,9 +40,7 @@ export default function MCPanel({
           ? '✊ grabbing'
           : handOk
             ? '✋ hand ready'
-            : faceOk
-              ? 'show your hand'
-              : 'no face';
+            : 'show your hand';
 
   return (
     <aside className={`mc ${open ? '' : 'collapsed'}`}>

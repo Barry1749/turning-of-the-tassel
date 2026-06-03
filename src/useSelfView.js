@@ -115,20 +115,10 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
         S.lastTs = ts;
 
         let cap = null;
-        let gestureForMarker = null;
-        let drawAngle;
+        const gestureForMarker = null; // no overlay on the professor's own scene
+        let drawAngle = REST_ANGLE;
         let hOk = false;
         let pinch = false;
-
-        if (S.faceLandmarker) {
-          let faceRes;
-          try {
-            faceRes = S.faceLandmarker.detectForVideo(video, ts);
-          } catch {
-            /* transient */
-          }
-          cap = computeCapTransform(faceRes?.faceLandmarks?.[0] || null);
-        }
 
         if (isHost && S.controller) {
           // reset the gesture when the spotlighted student changes
@@ -150,16 +140,26 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
             g = cb.current.gestureEnabled ? S.gesture.update(handLm) : null;
           }
           pinch = !!(g && g.present && g.pinching);
-          gestureForMarker = g;
+          // The professor wears no cap, so nothing is drawn on their own view; the
+          // controller's angle is still streamed so the STUDENT's tassel follows.
           const dt = Math.min(0.05, S.lastNow ? (now - S.lastNow) / 1000 : 0.016);
           const ev = S.controller.update(g, dt);
-          drawAngle = S.controller.angle; // host previews the turn on their own cap
           if (!S.lastSent || now - S.lastSent > 40) {
             cb.current.onTassel?.(S.controller.angle, pinch);
             S.lastSent = now;
           }
           if (ev === 'commit') cb.current.onCommit?.();
         } else {
+          // Students wear the cap; the tassel follows the incoming (streamed) angle.
+          if (S.faceLandmarker) {
+            let faceRes;
+            try {
+              faceRes = S.faceLandmarker.detectForVideo(video, ts);
+            } catch {
+              /* transient */
+            }
+            cap = computeCapTransform(faceRes?.faceLandmarks?.[0] || null);
+          }
           drawAngle = cb.current.getDrawAngle ? cb.current.getDrawAngle() : REST_ANGLE;
         }
 
@@ -168,7 +168,7 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
 
         S.frame += 1;
         if (S.frame % 8 === 0) {
-          setFaceOk(!!cap);
+          setFaceOk(isHost ? true : !!cap);
           setHandOk(hOk);
           setPinching(pinch);
         }
