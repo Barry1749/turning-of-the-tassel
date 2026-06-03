@@ -5,7 +5,12 @@
 
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
+import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
+import { AccessToken } from 'livekit-server-sdk';
+
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 const PORT = process.env.PORT || 3001;
 const REST_ANGLE = 1.05; // tassel resting on the right (must match the client)
@@ -27,8 +32,33 @@ const state = {
 
 const clients = new Map(); // ws -> { id, role, name }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   res.setHeader('access-control-allow-origin', '*');
+  // Sign a LiveKit join token (only if LiveKit credentials are configured).
+  if (req.url && req.url.startsWith('/token')) {
+    try {
+      const u = new URL(req.url, 'http://localhost');
+      const room = u.searchParams.get('room') || 'ceremony';
+      const identity = u.searchParams.get('identity') || randomUUID();
+      const pname = u.searchParams.get('name') || 'Guest';
+      const key = process.env.LIVEKIT_API_KEY;
+      const secret = process.env.LIVEKIT_API_SECRET;
+      if (!key || !secret) {
+        res.writeHead(501, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'LiveKit not configured' }));
+        return;
+      }
+      const at = new AccessToken(key, secret, { identity, name: pname });
+      at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
+      const token = await at.toJwt();
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ token }));
+    } catch (e) {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: String(e?.message || e) }));
+    }
+    return;
+  }
   if (req.url === '/state') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ state, participants: participantList() }));

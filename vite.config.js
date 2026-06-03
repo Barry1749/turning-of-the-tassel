@@ -11,6 +11,7 @@ export default defineConfig({
     // (or the plain localhost URL) is all anyone needs — no separate server URL.
     proxy: {
       '/ws': { target: 'ws://localhost:3001', ws: true, changeOrigin: true },
+      '/token': { target: 'http://localhost:3001', changeOrigin: true },
     },
   },
 });

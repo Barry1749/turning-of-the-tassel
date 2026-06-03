@@ -3,6 +3,7 @@ import { useCeremony } from '../useCeremony';
 import { useSelfView } from '../useSelfView';
 import { useDaily } from '../daily';
 import { useP2P } from '../useP2P';
+import { useLiveKit } from '../useLiveKit';
 import { REST_ANGLE, ANGLE_MAX } from '../tassel';
 import { celebrate, initAudio } from '../effects';
 import Stage from './Stage';
@@ -47,14 +48,22 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     onCommit,
   });
 
-  // Video: peer-to-peer mesh by default (free, no account); Daily only if a room URL is set.
-  const dailyEnabled = !!roomUrl;
-  const daily = useDaily({ roomUrl, name, selfStream });
-  const p2p = useP2P({ enabled: !dailyEnabled, myId, myRole: role, participants, selfStream, send, signalRef });
-  const remote = dailyEnabled ? daily.remote : p2p.remote;
-  const videoCount = dailyEnabled ? daily.count : p2p.count;
-  const videoError = dailyEnabled ? daily.error : null;
-  const videoJoined = dailyEnabled ? daily.joined : true;
+  // Video transport: LiveKit (SFU) when configured, else Daily if a room URL is set,
+  // else the built-in P2P mesh. Switching is just env vars; the rest of the app is the same.
+  const liveKitUrl = import.meta.env.VITE_LIVEKIT_URL;
+  const liveKitEnabled = !!liveKitUrl;
+  const dailyEnabled = !liveKitEnabled && !!roomUrl;
+  const p2pEnabled = !liveKitEnabled && !dailyEnabled;
+
+  const lk = useLiveKit({ enabled: liveKitEnabled, url: liveKitUrl, identity: myId, name, selfStream });
+  const daily = useDaily({ roomUrl: dailyEnabled ? roomUrl : '', name, selfStream });
+  const p2p = useP2P({ enabled: p2pEnabled, myId, myRole: role, participants, selfStream, send, signalRef });
+
+  const video = liveKitEnabled ? lk : dailyEnabled ? daily : p2p;
+  const remote = video.remote;
+  const videoCount = video.count;
+  const videoError = liveKitEnabled || dailyEnabled ? video.error : null;
+  const videoJoined = liveKitEnabled || dailyEnabled ? video.joined : true;
 
   useEffect(() => {
     const ev = eventRef.current;
@@ -117,13 +126,19 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   }
 
   const roleLabel = role === 'host' ? 'professor + mc' : role;
-  const videoLabel = dailyEnabled
+  const videoLabel = liveKitEnabled
     ? videoError
       ? 'Video error'
       : videoJoined
-        ? `Video ${videoCount}`
-        : 'Video…'
-    : `P2P ${p2p.count}`;
+        ? `LiveKit ${videoCount}`
+        : 'LiveKit…'
+    : dailyEnabled
+      ? videoError
+        ? 'Video error'
+        : videoJoined
+          ? `Video ${videoCount}`
+          : 'Video…'
+      : `P2P ${p2p.count}`;
 
   return (
     <div className="app">
