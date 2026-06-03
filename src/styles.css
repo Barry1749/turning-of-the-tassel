@@ -135,6 +135,31 @@ button.link {
   background: rgba(242, 193, 78, 0.25);
   color: #f2c14e;
 }
+.video-pill {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(124, 252, 155, 0.2);
+  color: #7cfc9b;
+}
+.video-pill.local {
+  background: rgba(255, 255, 255, 0.12);
+  color: #cbd0e0;
+}
+.mc-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mc-reset {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  border-radius: 6px;
+}
 .dot {
   width: 10px;
   height: 10px;

@@ -61,7 +61,14 @@ export default function MCPanel({
             <button onClick={actions.next}>Next ▶</button>
           </div>
 
-          <div className="mc-section">Program order</div>
+          <div className="mc-section">
+            Program order
+            {canEditRoster && (
+              <button className="mc-reset" onClick={actions.resetAll} title="Un-turn everyone and return to gallery">
+                ↺ reset all
+              </button>
+            )}
+          </div>
           <ol className="mc-roster">
             {roster.map((s) => (
               <li key={s.id} className={s.id === cstate.currentId ? 'cur' : ''}>

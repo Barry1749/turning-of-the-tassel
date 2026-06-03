@@ -105,12 +105,29 @@ wss.on('connection', (ws) => {
     if (!me) return;
 
     switch (msg.type) {
-      case 'hello':
+      case 'hello': {
         me.role = msg.role || 'guest';
         me.name = msg.name || me.name;
+        // auto-add a joining student to the program so they can be spotlighted/turned
+        if (
+          me.role === 'student' &&
+          me.name &&
+          !state.roster.some((s) => s.name.toLowerCase() === me.name.toLowerCase())
+        ) {
+          state.roster.push({
+            id: randomUUID(),
+            name: me.name,
+            university: '',
+            country: '',
+            countryCode: '',
+            turned: false,
+          });
+        }
         send(ws, { type: 'welcome', id: me.id, state });
         broadcastParticipants();
+        broadcastState();
         break;
+      }
 
       // ---- host-only controls ----
       case 'setMode': {
@@ -205,6 +222,19 @@ wss.on('connection', (ws) => {
         if (!isHost(me)) break;
         state.tassel = { angle: REST_ANGLE, engaged: false };
         broadcast({ type: 'tassel', angle: REST_ANGLE, engaged: false, studentId: state.currentId });
+        break;
+
+      case 'resetAll':
+        if (!isHost(me)) break;
+        state.roster.forEach((s) => {
+          s.turned = false;
+        });
+        state.mode = 'normal';
+        state.currentId = null;
+        state.tassel = { angle: REST_ANGLE, engaged: false };
+        state.countdown = null;
+        clearInterval(countdownTimer);
+        broadcastState();
         break;
 
       default:

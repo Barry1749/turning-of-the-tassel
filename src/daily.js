@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 export function useDaily({ roomUrl, name, selfStream }) {
   const [remote, setRemote] = useState({});
   const [joined, setJoined] = useState(false);
+  const [error, setError] = useState(null);
   const callRef = useRef(null);
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export function useDaily({ roomUrl, name, selfStream }) {
         Daily = (await import('@daily-co/daily-js')).default;
       } catch (e) {
         console.error('Failed to load Daily SDK', e);
+        setError(e?.message || 'Failed to load Daily');
         return;
       }
       call = Daily.createCallObject();
@@ -56,6 +58,7 @@ export function useDaily({ roomUrl, name, selfStream }) {
         await publishSelf(call, selfStream);
       } catch (e) {
         console.error('Daily join failed', e);
+        setError(e?.message || 'Daily join failed');
       }
       if (cancelled) {
         call.leave();
@@ -81,7 +84,7 @@ export function useDaily({ roomUrl, name, selfStream }) {
     if (joined && callRef.current && selfStream) publishSelf(callRef.current, selfStream);
   }, [joined, selfStream]);
 
-  return { remote, joined };
+  return { remote, joined, error, count: Object.keys(remote).length };
 }
 
 async function publishSelf(call, selfStream) {

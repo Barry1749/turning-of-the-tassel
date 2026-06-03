@@ -46,7 +46,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     onCommit,
   });
 
-  const { remote } = useDaily({ roomUrl, name, selfStream });
+  const { remote, joined: videoJoined, error: videoError, count: videoCount } = useDaily({ roomUrl, name, selfStream });
 
   useEffect(() => {
     const ev = eventRef.current;
@@ -100,6 +100,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
       else send({ type: 'resetTassel' });
     },
     commit: () => send({ type: 'commit' }),
+    resetAll: () => send({ type: 'resetAll' }),
     manualTurn,
   }), [send, manualTurn, resetGesture, isProfessor]);
 
@@ -108,12 +109,20 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   }
 
   const roleLabel = role === 'host' ? 'professor + mc' : role;
+  const videoLabel = !roomUrl
+    ? 'Local mode'
+    : videoError
+      ? 'Video error'
+      : videoJoined
+        ? `Video ✓${videoCount ? ` ${videoCount}` : ''}`
+        : 'Video…';
 
   return (
     <div className="app">
       <header className="topbar">
         <span className="brand">🎓 Turning of the Tassel</span>
         <span className={`mode-pill ${cstate.mode}`}>{cstate.mode === 'ceremony' ? 'Ceremony' : 'Gallery'}</span>
+        <span className={`video-pill ${roomUrl ? '' : 'local'}`} title={videoError || ''}>{videoLabel}</span>
         <span className="spacer" />
         <span className="me">{name} · {roleLabel}</span>
         <span className={`dot ${connected ? 'on' : 'off'}`} title={connected ? 'connected' : 'reconnecting…'} />
