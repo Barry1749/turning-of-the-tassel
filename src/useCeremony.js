@@ -25,6 +25,7 @@ export function useCeremony({ role, name, enabled = true }) {
 
   const tasselRef = useRef({ angle: REST_ANGLE, engaged: false, studentId: null });
   const eventRef = useRef(null);
+  const signalRef = useRef(null); // P2P signaling handler, set by useP2P
   const wsRef = useRef(null);
 
   useEffect(() => {
@@ -61,6 +62,8 @@ export function useCeremony({ role, name, enabled = true }) {
         } else if (msg.type === 'event') {
           eventRef.current = msg;
           setEventTick((t) => t + 1);
+        } else if (msg.type === 'signal') {
+          signalRef.current?.({ from: msg.from, data: msg.data });
         }
       };
       ws.onclose = () => {
@@ -83,5 +86,5 @@ export function useCeremony({ role, name, enabled = true }) {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
   }, []);
 
-  return { connected, myId, cstate, participants, tasselRef, eventRef, eventTick, send };
+  return { connected, myId, cstate, participants, tasselRef, eventRef, eventTick, send, signalRef };
 }

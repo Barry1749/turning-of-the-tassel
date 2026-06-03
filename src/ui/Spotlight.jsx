@@ -10,7 +10,7 @@ export default function Spotlight({ cstate, participants, myId, selfStream, remo
 
   const streamFor = (p) => {
     if (!p) return null;
-    return p.id === myId ? selfStream : remote[p.name]?.stream;
+    return p.id === myId ? selfStream : remote[p.id]?.stream || remote[p.name]?.stream;
   };
   const participantByName = (n) =>
     participants.find((p) => p.name.toLowerCase() === (n || '').toLowerCase()) || null;

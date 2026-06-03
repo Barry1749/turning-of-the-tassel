@@ -24,7 +24,7 @@ export default function Gallery({ cstate, participants, myId, myName, selfStream
     <div className={`gallery count-${Math.min(tiles.length, 9)}`}>
       {tiles.map((p) => {
         const isSelf = p.id === myId;
-        const stream = isSelf ? selfStream : remote[p.name]?.stream;
+        const stream = isSelf ? selfStream : remote[p.id]?.stream || remote[p.name]?.stream;
         const s = byName(p.name);
         const isCurrent = !!(s && s.id === cstate.currentId);
         return (

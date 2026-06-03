@@ -56,6 +56,14 @@ function broadcastState() {
 function broadcastParticipants() {
   broadcast({ type: 'participants', participants: participantList() });
 }
+function sendToId(targetId, obj) {
+  for (const [ws, m] of clients) {
+    if (m.id === targetId) {
+      send(ws, obj);
+      return;
+    }
+  }
+}
 // Controllers (MC / professor / combined host) may send ceremony commands.
 const isHost = (m) => m && (m.role === 'host' || m.role === 'professor' || m.role === 'mc');
 const orderedIds = () => state.roster.map((s) => s.id);
@@ -222,6 +230,11 @@ wss.on('connection', (ws) => {
         if (!isHost(me)) break;
         state.tassel = { angle: REST_ANGLE, engaged: false };
         broadcast({ type: 'tassel', angle: REST_ANGLE, engaged: false, studentId: state.currentId });
+        break;
+
+      // WebRTC signaling relay between two peers (any role)
+      case 'signal':
+        if (msg.to && msg.data) sendToId(msg.to, { type: 'signal', from: me.id, data: msg.data });
         break;
 
       case 'resetAll':

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useCeremony } from '../useCeremony';
 import { useSelfView } from '../useSelfView';
 import { useDaily } from '../daily';
+import { useP2P } from '../useP2P';
 import { REST_ANGLE, ANGLE_MAX } from '../tassel';
 import { celebrate, initAudio } from '../effects';
 import Stage from './Stage';
@@ -13,7 +14,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   const canEditRoster = role === 'mc' || role === 'host'; // edits the program order
   const isController = role === 'mc' || role === 'professor' || role === 'host';
 
-  const { connected, myId, cstate, participants, tasselRef, eventRef, eventTick, send } = useCeremony({ role, name });
+  const { connected, myId, cstate, participants, tasselRef, eventRef, eventTick, send, signalRef } = useCeremony({ role, name });
 
   const [gestureOn, setGestureOn] = useState(true);
   const [banner, setBanner] = useState(null);
@@ -46,7 +47,14 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     onCommit,
   });
 
-  const { remote, joined: videoJoined, error: videoError, count: videoCount } = useDaily({ roomUrl, name, selfStream });
+  // Video: peer-to-peer mesh by default (free, no account); Daily only if a room URL is set.
+  const dailyEnabled = !!roomUrl;
+  const daily = useDaily({ roomUrl, name, selfStream });
+  const p2p = useP2P({ enabled: !dailyEnabled, myId, myRole: role, participants, selfStream, send, signalRef });
+  const remote = dailyEnabled ? daily.remote : p2p.remote;
+  const videoCount = dailyEnabled ? daily.count : p2p.count;
+  const videoError = dailyEnabled ? daily.error : null;
+  const videoJoined = dailyEnabled ? daily.joined : true;
 
   useEffect(() => {
     const ev = eventRef.current;
@@ -109,20 +117,20 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   }
 
   const roleLabel = role === 'host' ? 'professor + mc' : role;
-  const videoLabel = !roomUrl
-    ? 'Local mode'
-    : videoError
+  const videoLabel = dailyEnabled
+    ? videoError
       ? 'Video error'
       : videoJoined
-        ? `Video ✓${videoCount ? ` ${videoCount}` : ''}`
-        : 'Video…';
+        ? `Video ${videoCount}`
+        : 'Video…'
+    : `P2P ${p2p.count}`;
 
   return (
     <div className="app">
       <header className="topbar">
         <span className="brand">🎓 Turning of the Tassel</span>
         <span className={`mode-pill ${cstate.mode}`}>{cstate.mode === 'ceremony' ? 'Ceremony' : 'Gallery'}</span>
-        <span className={`video-pill ${roomUrl ? '' : 'local'}`} title={videoError || ''}>{videoLabel}</span>
+        <span className="video-pill" title={videoError || ''}>{videoLabel}</span>
         <span className="spacer" />
         <span className="me">{name} · {roleLabel}</span>
         <span className={`dot ${connected ? 'on' : 'off'}`} title={connected ? 'connected' : 'reconnecting…'} />
