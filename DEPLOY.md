@@ -98,6 +98,12 @@ so the camera works).
 
 ---
 
+## Free uncapped video for a large ceremony (self-hosted LiveKit)
+
+For 15–20+ cameras with no per-minute caps, run your own LiveKit SFU on a free Oracle Cloud
+"Always Free" VM. Step-by-step in **[ORACLE.md](ORACLE.md)**. The app is unchanged — you just
+set `VITE_LIVEKIT_URL` + `LIVEKIT_API_KEY` + `LIVEKIT_API_SECRET` to your server.
+
 ## Hosting alternatives
 
 - **Web app:** Netlify or Cloudflare Pages work the same way (build `npm run build`, output `dist`, set `VITE_WS_URL`).
