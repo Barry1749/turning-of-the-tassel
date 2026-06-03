@@ -187,6 +187,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
       {needCamera && camStatus === 'ready' && arError && (
         <div className="cam-hint">AR cap unavailable: {arError} — video still works.</div>
       )}
+      {videoError && <div className="cam-hint">Video error: {videoError}</div>}
     </div>
   );
 }

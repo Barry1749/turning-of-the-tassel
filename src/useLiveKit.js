@@ -65,8 +65,14 @@ export function useLiveKit({ enabled, url, room = 'ceremony', identity, name, se
     (async () => {
       try {
         const res = await fetch(tokenUrl(room, identity, name || 'Guest'));
-        if (!res.ok) throw new Error(`token request failed (${res.status})`);
-        const { token } = await res.json();
+        const body = await res.text();
+        if (!res.ok) throw new Error(`token ${res.status}: ${body.slice(0, 140)}`);
+        let token;
+        try {
+          token = JSON.parse(body).token;
+        } catch {
+          throw new Error(`token response not JSON: ${body.slice(0, 80)}`);
+        }
         if (cancelled) return;
 
         rm = new Room({ adaptiveStream: true, dynacast: true });
@@ -87,7 +93,10 @@ export function useLiveKit({ enabled, url, room = 'ceremony', identity, name, se
         await publishLocal(rm, ctx.current.selfStream, published.current);
         rm.remoteParticipants.forEach((p) => rebuild(p));
       } catch (e) {
-        if (!cancelled) setError(e?.message || String(e));
+        if (!cancelled) {
+          console.error('LiveKit error:', e);
+          setError(e?.message || String(e));
+        }
       }
     })();
 
