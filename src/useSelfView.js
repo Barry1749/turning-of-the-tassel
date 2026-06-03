@@ -158,7 +158,7 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
             } catch {
               /* transient */
             }
-            cap = computeCapTransform(faceRes?.faceLandmarks?.[0] || null);
+            cap = computeCapTransform(faceRes?.faceLandmarks?.[0] || null, faceRes?.facialTransformationMatrixes?.[0]?.data || null);
           }
           drawAngle = cb.current.getDrawAngle ? cb.current.getDrawAngle() : REST_ANGLE;
         }

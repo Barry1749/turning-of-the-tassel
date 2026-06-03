@@ -1,40 +1,61 @@
-// Convert MediaPipe face landmarks into a cap transform, in NORMALIZED video coords
-// ([0..1] image space, un-mirrored). The renderer mirrors these for the selfie display.
+// Convert MediaPipe face landmarks (+ the optional 4x4 facial transformation matrix) into
+// a cap transform, in NORMALIZED video coords ([0..1] image space, un-mirrored). The
+// renderer mirrors these for the selfie display.
+//
+// We return a stable HEAD PIVOT (midpoint between the eyes) plus the head orientation
+// (yaw/pitch/roll). The renderer offsets the cap up+back from this pivot in the head's
+// own rotated frame, so the cap orbits onto the crown in 3D as the head turns.
+//
+// Scale comes from a 3D landmark distance (forehead<->chin), which is rotation-invariant,
+// so the cap doesn't shrink when you turn your head to profile (its 2D width foreshortens,
+// but the true 3D distance does not). Yaw/pitch come from the head-pose matrix; roll from
+// the landmarks.
+import { Matrix4, Euler } from 'three';
 
 const IDX = {
   foreheadTop: 10,
   chin: 152,
-  cheekRight: 234, // image-right edge of the face
-  cheekLeft: 454, // image-left edge of the face
   eyeOuterRight: 33,
   eyeOuterLeft: 263,
 };
 
-export function computeCapTransform(lm) {
+const _m = new Matrix4();
+const _e = new Euler(0, 0, 0, 'YXZ');
+
+export function computeCapTransform(lm, matrix) {
   if (!lm) return null;
 
   const top = lm[IDX.foreheadTop];
   const chin = lm[IDX.chin];
-  const cr = lm[IDX.cheekRight];
-  const cl = lm[IDX.cheekLeft];
   const er = lm[IDX.eyeOuterRight];
   const el = lm[IDX.eyeOuterLeft];
 
-  const centerX = (cr.x + cl.x) / 2;
-  const faceWidth = Math.hypot(cl.x - cr.x, cl.y - cr.y);
-  const faceHeight = Math.abs(chin.y - top.y) || faceWidth;
   const roll = Math.atan2(el.y - er.y, el.x - er.x);
 
-  // Sit the board above the forehead, offset along the head's "up" direction so it
-  // tilts with the head.
-  const lift = faceHeight * 0.55;
-  const anchorX = centerX + Math.sin(roll) * lift;
-  const anchorY = top.y - Math.cos(roll) * lift;
+  // rotation-invariant size: 3D forehead<->chin distance (doesn't foreshorten on turn)
+  const dz = (top.z || 0) - (chin.z || 0);
+  const faceSize3D = Math.hypot(top.x - chin.x, top.y - chin.y, dz) || Math.hypot(top.x - chin.x, top.y - chin.y);
+
+  // Head pivot: midpoint between the eyes (central + stable under rotation).
+  const refX = (er.x + el.x) / 2;
+  const refY = (er.y + el.y) / 2;
+
+  // Yaw + pitch from the head-pose matrix (column-major 16-float array).
+  let yaw = 0;
+  let pitch = 0;
+  if (matrix && matrix.length >= 16) {
+    _m.fromArray(matrix);
+    _e.setFromRotationMatrix(_m, 'YXZ');
+    pitch = _e.x;
+    yaw = _e.y;
+  }
 
   return {
-    nx: anchorX,
-    ny: anchorY,
-    nWidth: faceWidth * 1.55,
+    nx: refX,
+    ny: refY,
+    nWidth: faceSize3D,
     roll,
+    yaw,
+    pitch,
   };
 }

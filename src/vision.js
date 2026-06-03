@@ -17,6 +17,7 @@ export async function createLandmarkers() {
       baseOptions: { modelAssetPath: FACE_MODEL, delegate },
       runningMode: 'VIDEO',
       numFaces: 1,
+      outputFacialTransformationMatrixes: true, // 4x4 head pose -> yaw/pitch/roll
     });
 
   const makeHand = (delegate) =>
