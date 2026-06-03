@@ -75,6 +75,12 @@ grab, sweep **right → left**, and release on the left to graduate the student.
 - `VITE_WS_URL` — backend WebSocket URL (default `ws://<host>:3001`).
 - `VITE_DAILY_ROOM_URL` — a default Daily room URL.
 
+## Deploy (for the real event)
+
+For a durable hosted version — web app on **Vercel**, WebSocket server on **Render**, video
+via **Daily** — see **[DEPLOY.md](DEPLOY.md)**. In production set `VITE_WS_URL` to your
+deployed `wss://` server URL.
+
 ## Notes
 
 - Use **Chrome / Edge desktop** and allow the camera. A student with no camera still appears

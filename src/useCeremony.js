@@ -6,8 +6,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { REST_ANGLE } from './tassel';
 
 const WS_URL = (() => {
+  // ?ws=wss://... overrides everything (handy for pointing a deployed app at a tunnel)
+  const override = new URLSearchParams(location.search).get('ws');
+  if (override) return override;
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  if (location.protocol === 'https:') {
+    console.warn('VITE_WS_URL is not set — set it to your deployed wss:// server, or the ceremony will not connect.');
+  }
   return `${proto}//${location.hostname}:3001`;
 })();
 

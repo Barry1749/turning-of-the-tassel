@@ -1,0 +1,12 @@
+# Render Blueprint for the ceremony WebSocket server.
+# In Render: New > Blueprint > connect this repo. (Or create a Web Service manually with
+# Root Directory "server", Build "npm install", Start "npm start".)
+services:
+  - type: web
+    name: tassel-server
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
