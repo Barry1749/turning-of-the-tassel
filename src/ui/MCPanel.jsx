@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { flagEmoji } from '../flags';
 
 // Control panel for any controller (MC / professor / host).
-//   - Flow control (mode toggle, prev/next, spotlight) is available to all controllers.
-//   - Roster EDITING (reorder / add / remove) is the MC's job (canEditRoster).
-//   - The tassel-turn controls show in ceremony mode; the hand-gesture toggle is the
-//     professor's (isProfessor).
+//   - canEditRoster (MC / host): ceremony info, program order, add/remove, join links
+//   - flow control (mode, prev/next, spotlight): all controllers
+//   - tassel-turn controls: in ceremony mode; the hand-gesture toggle is the professor's
 export default function MCPanel({
   cstate,
   actions,
@@ -20,15 +18,31 @@ export default function MCPanel({
   pinching,
 }) {
   const [open, setOpen] = useState(true);
-  const [form, setForm] = useState({ name: '', university: '', country: '', countryCode: '' });
+  const [newName, setNewName] = useState('');
+  const [uni, setUni] = useState(cstate.university || '');
+  const [dept, setDept] = useState(cstate.department || '');
+  const [copied, setCopied] = useState(null);
+
   const roster = cstate.roster || [];
   const ceremony = cstate.mode === 'ceremony';
   const current = roster.find((s) => s.id === cstate.currentId) || null;
 
   const addStudent = () => {
-    if (!form.name.trim()) return;
-    actions.addStudent(form);
-    setForm({ name: '', university: '', country: '', countryCode: '' });
+    if (!newName.trim()) return;
+    actions.addStudent({ name: newName.trim() });
+    setNewName('');
+  };
+
+  const joinLink = (s) =>
+    `${location.origin}${location.pathname}?role=student&name=${encodeURIComponent(s.name)}&autojoin=1`;
+  const copyLink = async (s) => {
+    try {
+      await navigator.clipboard.writeText(joinLink(s));
+      setCopied(s.id);
+      setTimeout(() => setCopied((c) => (c === s.id ? null : c)), 1500);
+    } catch {
+      /* clipboard blocked */
+    }
   };
 
   const gestureStat =
@@ -51,6 +65,17 @@ export default function MCPanel({
 
       {open && (
         <div className="mc-body">
+          {canEditRoster && (
+            <>
+              <div className="mc-section">Ceremony</div>
+              <input className="mc-in" placeholder="University" value={uni} onChange={(e) => setUni(e.target.value)} />
+              <input className="mc-in" placeholder="Department" value={dept} onChange={(e) => setDept(e.target.value)} />
+              <button className="mc-save" onClick={() => actions.setInfo({ university: uni.trim(), department: dept.trim() })}>
+                Save ceremony info
+              </button>
+            </>
+          )}
+
           <div className="mc-seg">
             <button className={!ceremony ? 'sel' : ''} onClick={() => actions.setMode('normal')}>Gallery</button>
             <button className={ceremony ? 'sel' : ''} onClick={() => actions.setMode('ceremony')}>Ceremony</button>
@@ -62,21 +87,22 @@ export default function MCPanel({
           </div>
 
           <div className="mc-section">
-            Program order
+            Students
             {canEditRoster && (
-              <button className="mc-reset" onClick={actions.resetAll} title="Un-turn everyone and return to gallery">
-                ↺ reset all
-              </button>
+              <button className="mc-reset" onClick={actions.resetAll} title="Un-turn everyone and return to gallery">↺ reset all</button>
             )}
           </div>
           <ol className="mc-roster">
             {roster.map((s) => (
               <li key={s.id} className={s.id === cstate.currentId ? 'cur' : ''}>
                 <span className="r-name" onClick={() => actions.select(s.id)} title="Spotlight this student">
-                  {flagEmoji(s.countryCode)} {s.name} {s.turned ? <em>✓</em> : ''}
+                  {s.name} {s.turned ? <em>✓</em> : ''}
                 </span>
                 {canEditRoster && (
                   <span className="r-actions">
+                    <button onClick={() => copyLink(s)} title="Copy this student's personal join link">
+                      {copied === s.id ? '✓' : '🔗'}
+                    </button>
                     <button onClick={() => actions.reorder(s.id, 'up')} title="Move up">↑</button>
                     <button onClick={() => actions.reorder(s.id, 'down')} title="Move down">↓</button>
                     <button onClick={() => actions.removeStudent(s.id)} title="Remove">✕</button>
@@ -87,14 +113,16 @@ export default function MCPanel({
           </ol>
 
           {canEditRoster && (
-            <details className="mc-add">
-              <summary>+ Add student</summary>
-              <input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              <input placeholder="University" value={form.university} onChange={(e) => setForm({ ...form, university: e.target.value })} />
-              <input placeholder="Country" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
-              <input placeholder="Country code (e.g. JP)" maxLength={2} value={form.countryCode} onChange={(e) => setForm({ ...form, countryCode: e.target.value })} />
+            <div className="mc-add">
+              <input
+                className="mc-in"
+                placeholder="Add student name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addStudent()}
+              />
               <button onClick={addStudent}>Add</button>
-            </details>
+            </div>
           )}
 
           {ceremony && (
@@ -115,9 +143,7 @@ export default function MCPanel({
                 <button onClick={actions.resetTassel}>Reset tassel</button>
                 <button className="commit" onClick={actions.commit}>Mark graduated ✓</button>
               </div>
-              {isProfessor && (
-                <p className="mc-tip">Pinch → sweep right→left → release. The tassel moves on your own video and on the student's tile.</p>
-              )}
+              {isProfessor && <p className="mc-tip">Pinch → sweep right→left → release.</p>}
             </>
           )}
         </div>

@@ -1,8 +1,8 @@
 import ParticipantTile from './ParticipantTile';
 import { REST_ANGLE } from '../tassel';
-import { flagEmoji } from '../flags';
 
-// Ceremony mode: zoom to the professor + the current student, with captions.
+// Ceremony mode: zoom to the professor + the current student, with the ceremony-level
+// university / department caption (set by the MC).
 export default function Spotlight({ cstate, participants, myId, selfStream, remote, tasselRef }) {
   const roster = cstate.roster || [];
   const current = roster.find((s) => s.id === cstate.currentId) || null;
@@ -27,7 +27,6 @@ export default function Spotlight({ cstate, participants, myId, selfStream, remo
             name={host?.name || 'Professor'}
             role="host"
             isSelf={host?.id === myId}
-            flag="🎓"
             getAngle={() => REST_ANGLE}
           />
           <div className="spot-label">Professor</div>
@@ -43,20 +42,17 @@ export default function Spotlight({ cstate, participants, myId, selfStream, remo
             role="student"
             isSelf={studentP?.id === myId}
             isCurrent
-            flag={current ? flagEmoji(current.countryCode) : '🎓'}
             turned={current?.turned}
             getAngle={() => tasselRef.current.angle}
           />
           {current && (
             <div className="spot-caption">
-              <div className="spot-name">
-                {flagEmoji(current.countryCode)} {current.name}
-              </div>
-              {(current.university || current.country) && (
+              <div className="spot-name">{current.name}</div>
+              {(cstate.university || cstate.department) && (
                 <div className="spot-sub">
-                  Studying at {current.university}
-                  {current.university && current.country ? ', ' : ''}
-                  {current.country}
+                  {cstate.university}
+                  {cstate.university && cstate.department ? ' · ' : ''}
+                  {cstate.department}
                 </div>
               )}
             </div>

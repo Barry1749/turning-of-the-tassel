@@ -1,6 +1,5 @@
 import ParticipantTile from './ParticipantTile';
 import { REST_ANGLE } from '../tassel';
-import { flagEmoji } from '../flags';
 
 // Google-Meet-style grid of the people who are on camera (students + professor).
 // The MC and guests are operators/viewers and don't get a tile.
@@ -32,7 +31,6 @@ export default function Gallery({ cstate, participants, myId, myName, selfStream
             key={p.id}
             stream={stream}
             name={p.name}
-            flag={s ? flagEmoji(s.countryCode) : ''}
             role={p.role}
             isSelf={isSelf}
             isCurrent={isCurrent}

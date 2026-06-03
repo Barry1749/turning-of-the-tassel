@@ -3,7 +3,10 @@
 // Node server signs join tokens at /token. Remote streams are keyed by participant
 // identity, which we set to the ceremony participant id so the tiles line up.
 import { useEffect, useRef, useState } from 'react';
-import { Room, RoomEvent } from 'livekit-client';
+import { Room, RoomEvent, setLogLevel } from 'livekit-client';
+
+// Quiet LiveKit's verbose "connection state changed / signal connecting" info logs.
+setLogLevel('warn');
 
 function tokenUrl(room, identity, name) {
   const base = import.meta.env.VITE_WS_URL

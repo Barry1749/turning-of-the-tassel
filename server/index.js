@@ -15,12 +15,11 @@ dotenv.config();
 const PORT = process.env.PORT || 3001;
 const REST_ANGLE = 1.05; // tassel resting on the right (must match the client)
 
-const SAMPLE_ROSTER = [
-  { name: 'Mei-Ling Chen', university: 'ETH Zürich', country: 'Switzerland', countryCode: 'CH' },
-  { name: 'Wei Kang', university: 'University of Tokyo', country: 'Japan', countryCode: 'JP' },
-  { name: 'Sofia Rossi', university: 'TU Delft', country: 'Netherlands', countryCode: 'NL' },
-  { name: 'Arjun Patel', university: 'UC Berkeley', country: 'United States', countryCode: 'US' },
-].map((s) => ({ id: randomUUID(), turned: false, ...s }));
+const SAMPLE_ROSTER = ['Mei-Ling Chen', 'Wei Kang', 'Sofia Rossi', 'Arjun Patel'].map((name) => ({
+  id: randomUUID(),
+  name,
+  turned: false,
+}));
 
 const state = {
   mode: 'normal', // 'normal' | 'ceremony'
@@ -28,6 +27,8 @@ const state = {
   currentId: null, // spotlighted student
   tassel: { angle: REST_ANGLE, engaged: false },
   countdown: null,
+  university: '', // set by the MC at the start of the ceremony
+  department: '',
 };
 
 const clients = new Map(); // ws -> { id, role, name }
@@ -152,14 +153,7 @@ wss.on('connection', (ws) => {
           me.name &&
           !state.roster.some((s) => s.name.toLowerCase() === me.name.toLowerCase())
         ) {
-          state.roster.push({
-            id: randomUUID(),
-            name: me.name,
-            university: '',
-            country: '',
-            countryCode: '',
-            turned: false,
-          });
+          state.roster.push({ id: randomUUID(), name: me.name, turned: false });
         }
         send(ws, { type: 'welcome', id: me.id, state });
         broadcastParticipants();
@@ -209,14 +203,14 @@ wss.on('connection', (ws) => {
       }
       case 'addStudent':
         if (!isHost(me)) break;
-        state.roster.push({
-          id: randomUUID(),
-          name: msg.name || 'New Student',
-          university: msg.university || '',
-          country: msg.country || '',
-          countryCode: msg.countryCode || '',
-          turned: false,
-        });
+        state.roster.push({ id: randomUUID(), name: msg.name || 'New Student', turned: false });
+        broadcastState();
+        break;
+
+      case 'setInfo':
+        if (!isHost(me)) break;
+        if (typeof msg.university === 'string') state.university = msg.university;
+        if (typeof msg.department === 'string') state.department = msg.department;
         broadcastState();
         break;
       case 'removeStudent':

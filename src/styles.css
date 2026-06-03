@@ -405,27 +405,26 @@ button.link {
   font-size: 0.8rem;
   border-radius: 6px;
 }
-.mc-add {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  padding: 8px;
-}
-.mc-add summary {
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.mc-add input {
+.mc-in {
   width: 100%;
-  margin-top: 6px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #fff;
   padding: 7px 9px;
   border-radius: 8px;
+  font-size: 0.9rem;
 }
-.mc-add button {
+.mc-save {
   width: 100%;
-  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.mc-add {
+  display: flex;
+  gap: 6px;
+}
+.mc-add .mc-in {
+  flex: 1;
 }
 .mc-check {
   display: flex;

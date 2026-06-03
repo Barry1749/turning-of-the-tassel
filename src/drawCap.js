@@ -73,11 +73,11 @@ export function renderNameCard(canvas, { name = '', flag = '🎓', angle = REST_
   // cap on top of the head
   drawCap(ctx, cx, headY - headR * 0.72, headR * 2.3, 0, angle);
 
-  // name + flag
+  // name
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
-  ctx.font = "bold 34px system-ui, sans-serif";
-  ctx.fillText(`${flag}  ${name}`, cx, 408);
+  ctx.font = 'bold 34px system-ui, sans-serif';
+  ctx.fillText(flag ? `${flag}  ${name}` : name, cx, 408);
   if (turned) {
     ctx.fillStyle = '#7cfc9b';
     ctx.font = '22px system-ui, sans-serif';
