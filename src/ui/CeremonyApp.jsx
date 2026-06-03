@@ -10,8 +10,8 @@ import Countdown from './Countdown';
 
 export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   const isProfessor = role === 'professor' || role === 'host'; // performs the gesture (camera)
-  const canSequence = role === 'mc' || role === 'host'; // controls the program
-  const isController = canSequence || isProfessor;
+  const canEditRoster = role === 'mc' || role === 'host'; // edits the program order
+  const isController = role === 'mc' || role === 'professor' || role === 'host';
 
   const { connected, myId, cstate, participants, tasselRef, eventRef, eventTick, send } = useCeremony({ role, name });
 
@@ -21,11 +21,10 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   const roster = cstate?.roster || [];
   const currentStudent = roster.find((s) => s.id === cstate?.currentId) || null;
 
-  // refs read inside the rAF loop / stable callbacks
   const amCurrentRef = useRef(false);
   amCurrentRef.current = !!(role === 'student' && currentStudent && currentStudent.name.toLowerCase() === name.toLowerCase());
   const gestureOnRef = useRef(false);
-  gestureOnRef.current = gestureOn && isProfessor && cstate?.mode === 'ceremony';
+  gestureOnRef.current = isProfessor && cstate?.mode === 'ceremony';
 
   const getDrawAngle = useCallback(() => (amCurrentRef.current ? tasselRef.current.angle : REST_ANGLE), [tasselRef]);
   const onTassel = useCallback((angle, engaged) => {
@@ -35,11 +34,13 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     if (gestureOnRef.current) send({ type: 'commit' });
   }, [send]);
 
-  // Only the professor / student devices need a camera. The MC can run on a phone with none.
+  // MC needs no camera (phone-friendly); professor + students do.
   const needCamera = isProfessor || role === 'student';
-  const { stream: selfStream, status: camStatus, error: camError, faceOk, handOk } = useSelfView({
+  const { stream: selfStream, status: camStatus, error: camError, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture } = useSelfView({
     active: needCamera,
     isHost: isProfessor,
+    gestureEnabled: gestureOn,
+    turnKey: cstate?.currentId,
     getDrawAngle,
     onTassel,
     onCommit,
@@ -47,7 +48,6 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
 
   const { remote } = useDaily({ roomUrl, name, selfStream });
 
-  // confetti + banner when the server broadcasts a graduation
   useEffect(() => {
     const ev = eventRef.current;
     if (ev?.event === 'celebrate') {
@@ -66,6 +66,12 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   const manualRef = useRef(0);
   const manualTurn = useCallback(() => {
     initAudio();
+    // Professor: drive the controller (its ~25Hz stream would override a backend tween)
+    if (isProfessor) {
+      forceTurnGesture();
+      return;
+    }
+    // MC (no local controller): tween the tassel over the backend
     cancelAnimationFrame(manualRef.current);
     const dur = 1300;
     const start = performance.now();
@@ -78,7 +84,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
       else send({ type: 'commit' });
     };
     manualRef.current = requestAnimationFrame(step);
-  }, [send]);
+  }, [send, isProfessor, forceTurnGesture]);
 
   const actions = useMemo(() => ({
     setMode: (mode) => send({ type: 'setMode', mode }),
@@ -89,16 +95,19 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     addStudent: (s) => send({ type: 'addStudent', ...s }),
     removeStudent: (id) => send({ type: 'removeStudent', id }),
     countdown: (n) => send({ type: 'startCountdown', n }),
-    resetTassel: () => send({ type: 'resetTassel' }),
+    resetTassel: () => {
+      if (isProfessor) resetGesture();
+      else send({ type: 'resetTassel' });
+    },
     commit: () => send({ type: 'commit' }),
     manualTurn,
-  }), [send, manualTurn]);
+  }), [send, manualTurn, resetGesture, isProfessor]);
 
   if (!cstate) {
     return <div className="center-msg">{connected ? 'Loading ceremony…' : 'Connecting to ceremony server…'}</div>;
   }
 
-  const roleLabel = canSequence && isProfessor ? 'professor + mc' : canSequence ? 'mc' : isProfessor ? 'professor' : role;
+  const roleLabel = role === 'host' ? 'professor + mc' : role;
 
   return (
     <div className="app">
@@ -125,13 +134,15 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
         <MCPanel
           cstate={cstate}
           actions={actions}
-          canSequence={canSequence}
+          canEditRoster={canEditRoster}
           isProfessor={isProfessor}
           gestureOn={gestureOn}
           setGestureOn={setGestureOn}
           camStatus={camStatus}
+          arReady={arReady}
           faceOk={faceOk}
           handOk={handOk}
+          pinching={pinching}
         />
       )}
 
@@ -139,7 +150,10 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
       {banner && <div className="banner">🎓 {banner} — Congratulations! 🎉</div>}
 
       {needCamera && camStatus !== 'ready' && (
-        <div className="cam-hint">{camStatus === 'error' ? `Camera: ${camError}` : 'Starting camera & AR…'}</div>
+        <div className="cam-hint">{camStatus === 'error' ? `Camera: ${camError}` : 'Starting camera…'}</div>
+      )}
+      {needCamera && camStatus === 'ready' && arError && (
+        <div className="cam-hint">AR cap unavailable: {arError} — video still works.</div>
       )}
     </div>
   );

@@ -7,7 +7,7 @@ const LM = { wrist: 0, thumbTip: 4, indexTip: 8, indexMcp: 5, middleMcp: 9, pink
 
 const SMOOTH = 0.4; // EMA factor
 const PINCH_ON = 0.45; // become pinching below this ratio
-const PINCH_OFF = 0.65; // release above this ratio
+const PINCH_OFF = 0.7; // release above this ratio (wider gap avoids accidental release mid-sweep)
 
 export function createGestureTracker() {
   let smX = 0.5;
