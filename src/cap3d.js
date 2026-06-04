@@ -188,6 +188,19 @@ export function createCapRenderer(width = 640, height = 480) {
   skullDepth.renderOrder = -1;
   cap.add(skullDepth);
 
+  // Depth-only HEAD proxy — stands in for the wearer's head/face so the cap behaves like a real
+  // solid cap: the board & brim show from OUTSIDE (the head is behind them, farther from the
+  // camera, so it doesn't affect them), but when you look up INTO the cap the head is now BETWEEN
+  // the camera and the board's underside, so it occludes the brim. It writes only DEPTH (no color),
+  // so where it hides the brim the cap render is transparent and the real video face shows through
+  // instead of a flap of board hanging over your face. renderOrder -2 draws it FIRST, so the
+  // board/brim behind it fail the depth test. Size/seat are live-tunable via capConfig
+  // (headScale = width vs the crown, headLong = how far down it covers the face, headDrop = seat).
+  const headMat = new THREE.MeshBasicMaterial({ colorWrite: false }); // depth-only occluder
+  const head = new THREE.Mesh(new THREE.SphereGeometry(SKULL_R, 24, 18), headMat);
+  head.renderOrder = -2;
+  cap.add(head);
+
   // covered button at the board centre — the tassel cord is pinned to its top
   const button = new THREE.Mesh(
     new THREE.CylinderGeometry(BOARD_SIZE * 0.045, BOARD_SIZE * 0.045, BOARD_THICK * 1.3, 18),
@@ -472,11 +485,20 @@ export function createCapRenderer(width = 640, height = 480) {
 
   return {
     canvas,
-    render({ cx, cy, scale, yaw = 0, pitch = 0, roll = 0, tasselAngle = 0, skullHeight = 0.5 }) {
+    render({
+      cx, cy, scale, yaw = 0, pitch = 0, roll = 0, tasselAngle = 0, skullHeight = 0.5,
+      headHide = true, headScale = 0.9, headDrop = 0.55, headLong = 1.5,
+    }) {
       place(cx, cy, scale);
       cap.rotation.set(pitch, yaw, roll, 'YXZ');
       skull.scale.y = skullHeight; // taller/shorter crown, live-tunable
       skullDepth.scale.y = skullHeight; // depth twin follows the crown
+
+      // seat the depth-only head proxy: width ~ the crown, stretched down to cover the face, sitting
+      // just under the board. It occludes the board's underside only from the INSIDE (look-up) view.
+      head.visible = headHide;
+      head.position.y = -headDrop;
+      head.scale.set(headScale, headScale * headLong, headScale);
 
       // gravity points to true screen-"down", expressed in the cap's local frame so head
       // tilt makes the tassel sway instead of dragging it around rigidly.

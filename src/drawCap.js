@@ -29,6 +29,12 @@ export const capConfig = {
   yawSign: -1, // flip if turning your head moves the cap the wrong way
   pitchSign: 1,
   rollSign: 1,
+  // Depth-only head proxy: makes the board/brim visible from OUTSIDE but hidden from INSIDE (your
+  // head blocks the underside when you look up, so your face shows instead of a brim over it).
+  headHide: true, // turn the occluder on/off
+  headScale: 0.9, // head width vs the crown radius (smaller stays inside the crown wall)
+  headLong: 1.5, // how far DOWN it reaches to cover the face (bigger = taller, covers more brim)
+  headDrop: 0.55, // how far below the board the head centre sits (seat)
 };
 // Expose for live tuning from the browser console, e.g. `capConfig.width = 0.9` (applies
 // next frame). Lets you dial size/seat without any UI in the camera code.
@@ -90,7 +96,14 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
 
     const r = getSceneRenderer(vw, vh);
     if (r) {
-      r.render({ cx, cy, scale, yaw, pitch, roll, tasselAngle, skullHeight: capConfig.skullHeight });
+      r.render({
+        cx, cy, scale, yaw, pitch, roll, tasselAngle,
+        skullHeight: capConfig.skullHeight,
+        headHide: capConfig.headHide,
+        headScale: capConfig.headScale,
+        headLong: capConfig.headLong,
+        headDrop: capConfig.headDrop,
+      });
       ctx.drawImage(r.canvas, 0, 0);
     } else {
       drawVectorCap(ctx, cx, cy, scale, roll, tasselAngle);
@@ -138,7 +151,9 @@ export function renderNameCard(canvas, { name = '', flag = '🎓', angle = REST_
   const scale = headR * 2.3 * capConfig.width;
   const r = getCardRenderer();
   if (r) {
-    r.render({ cx, cy: capY, scale, yaw: 0, pitch: 0, roll: 0, tasselAngle: angle, skullHeight: capConfig.skullHeight });
+    // headHide off here: the name card has no real head/video behind the cap, so an occluder would
+    // just punch a transparent hole in the board. Show the board solid instead.
+    r.render({ cx, cy: capY, scale, yaw: 0, pitch: 0, roll: 0, tasselAngle: angle, skullHeight: capConfig.skullHeight, headHide: false });
     ctx.drawImage(r.canvas, 0, 0);
   } else {
     drawVectorCap(ctx, cx, capY, scale, 0, angle);
