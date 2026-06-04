@@ -128,13 +128,31 @@ export function createCapRenderer(width = 640, height = 480) {
     side: THREE.FrontSide, // cull interior faces so you never see inside the cap
   });
 
+  // ---- TEMP DEBUG: color each cap component so the live camera can tell them apart -------------
+  // Set DEBUG_PARTS = false (or delete this block + restore the materials below) for the real cap.
+  // Geometry, sides, and occlusion are UNCHANGED — only colors differ — so the shapes you see are
+  // exactly the real cap's. Color legend:
+  //   RED     = board TOP face (the diamond you see from above)
+  //   GREEN   = board UNDERSIDE (−Y) — what we painted matte black; the suspect "round plane"
+  //   YELLOW  = board EDGES (the 4 thin rim faces = the board's thickness)
+  //   BLUE    = crown WALL (the cylinder tube)
+  //   MAGENTA = centre BUTTON
+  // (The depth-only twin stays invisible — it writes no color, so it can't be the plane you see.)
+  const DEBUG_PARTS = true;
+  const dbgMat = (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.6, metalness: 0.0 });
+  const matTop = DEBUG_PARTS ? dbgMat(0xff3333) : boardMat; // RED
+  const matUnder = DEBUG_PARTS ? dbgMat(0x33cc44) : skullMat; // GREEN
+  const matEdge = DEBUG_PARTS ? dbgMat(0xffd11a) : boardMat; // YELLOW
+  const matCrown = DEBUG_PARTS ? dbgMat(0x3a78ff) : skullMat; // BLUE  (FrontSide kept via default)
+  const matButton = DEBUG_PARTS ? dbgMat(0xff44ff) : boardMat; // MAGENTA
+
   // large flat square board — rotated 45° so a CORNER points forward (worn like a diamond).
   // Per-face materials: the UNDERSIDE (−Y, BoxGeometry material index 3) uses the matte-black
   // crown material so it doesn't read as a shiny disc through the crown's open top when you look
   // up — it blends into the cylinder so the cap looks like one solid piece. All other faces (top,
   // 4 edges) keep boardMat. Face order is [+X, −X, +Y(top), −Y(bottom), +Z, −Z].
   const board = new THREE.Mesh(new THREE.BoxGeometry(BOARD_SIZE, BOARD_THICK, BOARD_SIZE), [
-    boardMat, boardMat, boardMat, skullMat, boardMat, boardMat,
+    matEdge, matEdge, matTop, matUnder, matEdge, matEdge,
   ]);
   board.rotation.y = Math.PI / 4;
   cap.add(board);
@@ -144,7 +162,7 @@ export function createCapRenderer(width = 640, height = 480) {
   // the height is driven live by capConfig.skullHeight (passed to render()).
   const skullGeo = new THREE.CylinderGeometry(SKULL_R, SKULL_R, 1, 32, 1, true); // open-ended: no caps
   skullGeo.translate(0, -0.5, 0);
-  const skull = new THREE.Mesh(skullGeo, skullMat);
+  const skull = new THREE.Mesh(skullGeo, matCrown);
   skull.position.y = -BOARD_THICK / 2; // top tucks just under the board
   skull.scale.y = 0.5;
   cap.add(skull);
@@ -173,7 +191,7 @@ export function createCapRenderer(width = 640, height = 480) {
   // covered button at the board centre — the tassel cord is pinned to its top
   const button = new THREE.Mesh(
     new THREE.CylinderGeometry(BOARD_SIZE * 0.045, BOARD_SIZE * 0.045, BOARD_THICK * 1.3, 18),
-    boardMat,
+    matButton,
   );
   button.position.y = BOARD_THICK * 0.6;
   cap.add(button);
