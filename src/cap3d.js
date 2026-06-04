@@ -188,6 +188,31 @@ export function createCapRenderer(width = 640, height = 480) {
   skullDepth.renderOrder = -1;
   cap.add(skullDepth);
 
+  // ---- Thick crown WALL — give the band real material thickness (not a paper-thin shell) -------
+  // The outer wall above is a single open surface (zero thickness). Rather than re-engineer the
+  // proven outer-wall occlusion, we ADD two pieces PARENTED to `skull`, so they inherit its seat +
+  // the skullHeight and rx/rz oval scaling for free, and outer radius stays exactly the same:
+  //   • skullInner — the same open crown wall scaled inward by innerRatio = 1 − skullWall/SKULL_R.
+  //     It's always behind the (opaque, in-front) outer wall from outside, so it never makes the cap
+  //     "see-inside"; it just gives the band an inner face for low-angle / look-up views.
+  //   • skullRim   — a downward-facing annulus from the inner to the outer radius at the band's
+  //     BOTTOM, sealing the gap so the lower edge reads as solid material (the visible "thickness").
+  // (No TOP rim: the board sits on the crown top and hides that join — a top disc/dome was the old
+  // crown↔board artifact, so we keep that end open.) Thickness is live via capConfig.skullWall.
+  const skullInner = new THREE.Mesh(skullGeo, matCrown); // matte, FrontSide; scaled inward each frame
+  skull.add(skullInner);
+  let rimWall = -1; // skullWall the rim annulus was last built for (rebuild only when it changes)
+  const skullRim = new THREE.Mesh(new THREE.RingGeometry(SKULL_R * 0.85, SKULL_R, 32), matCrown);
+  skullRim.rotation.x = Math.PI / 2; // lay the ring flat, facing DOWN (seen from below / on look-up)
+  skullRim.position.y = -1; // band bottom in skull-local units (skull.scale.y = skullHeight drops it)
+  skull.add(skullRim);
+  // The inner wall + rim render at the DEFAULT order (0), i.e. AFTER the depth-only head proxy (-2),
+  // so the proxy occludes them by depth where the head is IN FRONT of them — which is exactly the FAR
+  // half of the band (behind your head) on look-up. The NEAR half stays visible because the proxy is
+  // sized to tuck just inside the inner wall (see the head.scale in render()), so it can't bulge in
+  // front of the near rim and clamp it. (An earlier renderOrder=-3 made them immune to the proxy and
+  // leaked the far rim through the head — the "full floating ring" bug.)
+
   // Depth-only HEAD proxy — stands in for the wearer's head/face so the cap behaves like a real
   // solid cap: the board & brim show from OUTSIDE (the head is behind them, farther from the
   // camera, so it doesn't affect them), but when you look up INTO the cap the head is now BETWEEN
@@ -487,20 +512,49 @@ export function createCapRenderer(width = 640, height = 480) {
     canvas,
     render({
       cx, cy, scale, yaw = 0, pitch = 0, roll = 0, tasselAngle = 0, skullHeight = 0.5,
+      skullThick = 1.0, skullLong = 1.3, skullWall = 0.02,
       headHide = true, headScale = 0.9, headDrop = 0.55, headLong = 1.5,
     }) {
       place(cx, cy, scale);
       cap.rotation.set(pitch, yaw, roll, 'YXZ');
-      skull.scale.y = skullHeight; // taller/shorter crown, live-tunable
-      skullDepth.scale.y = skullHeight; // depth twin follows the crown
+      // Crown cross-section. skullThick scales the whole band's radius (chunkier); skullLong adds
+      // extra reach along local Z = nose↔back, so the cylinder is an OVAL that's longer front-to-
+      // back than ear-to-ear, like a real head. The depth twin must scale IDENTICALLY or it stops
+      // occluding the board behind the (now wider/longer) wall.
+      const rx = skullThick; // ear-to-ear radius multiplier
+      const rz = skullThick * skullLong; // nose-to-back radius multiplier (longer)
+      skull.scale.set(rx, skullHeight, rz); // taller/shorter + oval crown, live-tunable
+      skullDepth.scale.set(rx, skullHeight, rz); // depth twin follows the crown exactly
+
+      // Crown wall thickness (children of skull, so they inherit the scale above). Inner wall sits
+      // skullWall inside the outer radius; the bottom rim spans that gap. skullWall is in the same
+      // local units as SKULL_R; 0 collapses back to the original paper-thin shell.
+      const hasWall = skullWall > 0.0001;
+      skullInner.visible = hasWall;
+      skullRim.visible = hasWall;
+      if (hasWall) {
+        const innerRatio = Math.max(0.1, 1 - skullWall / SKULL_R);
+        skullInner.scale.set(innerRatio, 1, innerRatio); // (× skull's rx/skullHeight/rz via parenting)
+        if (skullWall !== rimWall) { // rebuild the annulus only when the thickness actually changes
+          skullRim.geometry.dispose();
+          skullRim.geometry = new THREE.RingGeometry(Math.max(0.01, SKULL_R - skullWall), SKULL_R, 32);
+          rimWall = skullWall;
+        }
+      }
 
       // seat the depth-only head proxy: width ~ the crown, stretched down to cover the face. Its TOP
       // is anchored just under the board so headLong/headScale only ever reach DOWNWARD over the
       // face — never UP through the board (a proxy poking above the board would occlude the board's
       // own top-centre, punching a hole in it). It hides the board underside only from the INSIDE.
       head.visible = headHide;
-      head.scale.set(headScale, headScale * headLong, headScale);
-      const headRy = SKULL_R * headScale * headLong; // y-radius after scaling
+      // Width tucked just INSIDE the band's inner wall (× innerWallRatio), matching the crown's oval
+      // footprint (rx/rz). This is the key to a THICK band reading right on look-up: the head can't
+      // bulge in front of the near rim/inner wall (so the visible thickness isn't clamped), yet it
+      // still fills the centre — so it occludes the FAR rim/wall (behind the head) and the board
+      // underside. Vertical reach (headLong) is unchanged, so the brim-flap coverage is unaffected.
+      const innerWallRatio = skullWall > 0.0001 ? Math.max(0.1, 1 - skullWall / SKULL_R) : 1;
+      head.scale.set(headScale * rx * innerWallRatio, headScale * headLong, headScale * rz * innerWallRatio);
+      const headRy = SKULL_R * headScale * headLong; // y-radius after scaling (thickness-independent)
       head.position.y = -BOARD_THICK / 2 - headDrop - headRy; // top sits at board-bottom − headDrop
 
       // gravity points to true screen-"down", expressed in the cap's local frame so head
@@ -548,6 +602,7 @@ export function createCapRenderer(width = 640, height = 480) {
       cord.geometry.dispose();
       segGeoTop.dispose();
       segGeoBot.dispose();
+      skullRim.geometry.dispose();
       renderer.dispose();
     },
   };

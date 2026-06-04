@@ -26,6 +26,9 @@ export const capConfig = {
   crownUp: 0.55, // how far above the head pivot the board sits
   crownBack: 0.3, // how far back toward the crown (profile)
   skullHeight: 0.35, // height of the cylindrical crown (bigger = taller cap)
+  skullThick: 1.0, // overall crown radius (width) multiplier — keep at 1.0 (this is NOT material thickness)
+  skullLong: 1.3, // crown oval: stretch along nose↔back (a real head is longer front-to-back than ear-to-ear)
+  skullWall: 0.02, // crown WALL thickness (material depth) in local units; 0 = paper-thin shell, bigger = chunkier band
   yawSign: -1, // flip if turning your head moves the cap the wrong way
   pitchSign: 1,
   rollSign: 1,
@@ -99,6 +102,9 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
       r.render({
         cx, cy, scale, yaw, pitch, roll, tasselAngle,
         skullHeight: capConfig.skullHeight,
+        skullThick: capConfig.skullThick,
+        skullLong: capConfig.skullLong,
+        skullWall: capConfig.skullWall,
         headHide: capConfig.headHide,
         headScale: capConfig.headScale,
         headLong: capConfig.headLong,
@@ -153,7 +159,7 @@ export function renderNameCard(canvas, { name = '', flag = '🎓', angle = REST_
   if (r) {
     // headHide off here: the name card has no real head/video behind the cap, so an occluder would
     // just punch a transparent hole in the board. Show the board solid instead.
-    r.render({ cx, cy: capY, scale, yaw: 0, pitch: 0, roll: 0, tasselAngle: angle, skullHeight: capConfig.skullHeight, headHide: false });
+    r.render({ cx, cy: capY, scale, yaw: 0, pitch: 0, roll: 0, tasselAngle: angle, skullHeight: capConfig.skullHeight, skullThick: capConfig.skullThick, skullLong: capConfig.skullLong, skullWall: capConfig.skullWall, headHide: false });
     ctx.drawImage(r.canvas, 0, 0);
   } else {
     drawVectorCap(ctx, cx, capY, scale, 0, angle);
