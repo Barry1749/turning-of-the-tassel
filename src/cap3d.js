@@ -121,21 +121,19 @@ export function createCapRenderer(width = 640, height = 480) {
   const boardMat = new THREE.MeshStandardMaterial({ color: BOARD_COLOR, roughness: 0.55, metalness: 0.08 });
   const tasselMat = new THREE.MeshStandardMaterial({ color: TASSEL_COLOR, roughness: 0.8, metalness: 0.0 });
 
-  // The crown is a full tube with no real head inside it, so tilting up lets you see INTO the
-  // tube's far wall (its inside), which reads as the cap covering your face. A real head fills
-  // the cap, hiding whatever is on the far side from the viewer. Fix: clip away the half of the
-  // crown FARTHER from the camera (the view-relative "back"), keeping the near half (the band you
-  // actually see). The plane is rebuilt each frame perpendicular to the camera→cap sightline, so
-  // "back" always means back-from-the-view no matter how the head turns. DoubleSide keeps the kept
-  // half reading as solid black (with an underside) instead of a see-through shell.
+  // The crown is a hollow open-ended tube (see skullGeo) with FrontSide back-face culling, so you
+  // never see its interior, and a clip plane removes the half FARTHER from the camera (rebuilt each
+  // frame perpendicular to the camera→crown sightline). The board shares the clip so neither part of
+  // the cap renders below the front edge when you tilt up.
   const crownClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // rebuilt live, world space
   const skullMat = new THREE.MeshStandardMaterial({
     color: SKULL_COLOR,
     roughness: 0.95,
     metalness: 0.0,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide, // cull interior faces so you never see inside the cap
     clippingPlanes: [crownClip],
   });
+  boardMat.clippingPlanes = [crownClip];
 
   // large flat square board — rotated 45° so a CORNER points forward (worn like a diamond)
   const board = new THREE.Mesh(new THREE.BoxGeometry(BOARD_SIZE, BOARD_THICK, BOARD_SIZE), boardMat);
@@ -145,12 +143,24 @@ export function createCapRenderer(width = 640, height = 480) {
   // cylindrical crown (straight sides, not a bowl) sitting on the head, under the board.
   // Unit-height geometry with its TOP at the local origin, so scale.y grows it DOWNWARD;
   // the height is driven live by capConfig.skullHeight (passed to render()).
-  const skullGeo = new THREE.CylinderGeometry(SKULL_R, SKULL_R, 1, 32);
+  const skullGeo = new THREE.CylinderGeometry(SKULL_R, SKULL_R, 1, 32, 1, true); // open-ended: no caps
   skullGeo.translate(0, -0.5, 0);
   const skull = new THREE.Mesh(skullGeo, skullMat);
   skull.position.y = -BOARD_THICK / 2; // top tucks just under the board
   skull.scale.y = 0.5;
   cap.add(skull);
+
+  // FrontSide makes the crown see-through where its wall faces away — so looking up you'd see the
+  // board's underside THROUGH the open tube. Fix: a depth-only back-face twin of the crown. It
+  // writes DEPTH for the tube's far/inner wall (occluding the board behind it, so the band reads
+  // solid) but draws no COLOR (so you still never see the hollow interior). renderOrder -1 so its
+  // depth is laid down before the board, which then fails the depth test where the crown covers it.
+  const skullDepthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.BackSide });
+  const skullDepth = new THREE.Mesh(skullGeo, skullDepthMat);
+  skullDepth.position.y = -BOARD_THICK / 2;
+  skullDepth.scale.y = 0.5;
+  skullDepth.renderOrder = -1;
+  cap.add(skullDepth);
 
   // covered button at the board centre — the tassel cord is pinned to its top
   const button = new THREE.Mesh(
@@ -440,15 +450,17 @@ export function createCapRenderer(width = 640, height = 480) {
       place(cx, cy, scale);
       cap.rotation.set(pitch, yaw, roll, 'YXZ');
       skull.scale.y = skullHeight; // taller/shorter crown, live-tunable
+      skullDepth.scale.y = skullHeight; // depth twin follows the crown
 
-      // Hide the half of the crown FARTHEST from the camera, keeping the near half — the clip plane
-      // is perpendicular to the camera→cap sightline, so "far" always means far-from-the-viewer no
-      // matter how the head turns. skullClip = fraction KEPT from the near side (where the cut sits):
-      // 0.5 = hide exactly the far half, 1 = whole tube (no hide), 0 = nothing.
+      // Hide the half of the crown FARTHEST from the camera, keeping the near half — plane through
+      // the crown's centre, perpendicular to the camera→crown sightline. skullClip = fraction kept.
       const s = cap.scale.x; // uniform scale from place()
       const keep = THREE.MathUtils.clamp(skullClip, 0, 1);
-      _viewN.copy(cap.position).negate().normalize(); // cap -> camera (camera is at the origin)
-      _planePt.copy(cap.position).addScaledVector(_viewN, SKULL_R * s * (1 - 2 * keep));
+      cap.updateMatrixWorld(true);
+      _planePt.set(0, -(BOARD_THICK / 2 + skullHeight / 2), 0).applyMatrix4(cap.matrixWorld); // crown centre (world)
+      _viewN.copy(_planePt).negate().normalize(); // crown centre -> camera (camera is at the origin)
+      _planePt.set(0, -(BOARD_THICK / 2 + skullHeight / 2), 0).applyMatrix4(cap.matrixWorld);
+      _planePt.addScaledVector(_viewN, SKULL_R * s * (1 - 2 * keep)); // shift the cut by skullClip
       crownClip.setFromNormalAndCoplanarPoint(_viewN, _planePt); // keep the near (+normal) side
 
       // gravity points to true screen-"down", expressed in the cap's local frame so head
