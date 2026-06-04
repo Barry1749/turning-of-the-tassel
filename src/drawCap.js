@@ -23,7 +23,7 @@ const GOLD_DK = '#c9962f';
 // mirrored, so yaw + roll are sign-flipped here.
 export const capConfig = {
   width: 0.85, // cap size (multiplier on the head's rotation-invariant 3D size)
-  crownUp: 0.5, // how far above the head pivot the board sits
+  crownUp: 0.55, // how far above the head pivot the board sits
   crownBack: 0.3, // how far back toward the crown (profile)
   skullHeight: 0.35, // height of the cylindrical crown (bigger = taller cap)
   yawSign: -1, // flip if turning your head moves the cap the wrong way
