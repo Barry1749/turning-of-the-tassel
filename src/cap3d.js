@@ -138,7 +138,7 @@ export function createCapRenderer(width = 640, height = 480) {
   //   BLUE    = crown WALL (the cylinder tube)
   //   MAGENTA = centre BUTTON
   // (The depth-only twin stays invisible — it writes no color, so it can't be the plane you see.)
-  const DEBUG_PARTS = true;
+  const DEBUG_PARTS = false; // flip to true to color-code the parts (red/green/yellow/blue/magenta) for diagnosis
   const dbgMat = (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.6, metalness: 0.0 });
   const matTop = DEBUG_PARTS ? dbgMat(0xff3333) : boardMat; // RED
   const matUnder = DEBUG_PARTS ? dbgMat(0x33cc44) : skullMat; // GREEN
