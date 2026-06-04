@@ -32,9 +32,9 @@ export const capConfig = {
   // Depth-only head proxy: makes the board/brim visible from OUTSIDE but hidden from INSIDE (your
   // head blocks the underside when you look up, so your face shows instead of a brim over it).
   headHide: true, // turn the occluder on/off
-  headScale: 0.9, // head width vs the crown radius (smaller stays inside the crown wall)
-  headLong: 1.5, // how far DOWN it reaches to cover the face (bigger = taller, covers more brim)
-  headDrop: 0.55, // how far below the board the head centre sits (seat)
+  headScale: 1.0, // head width vs the crown radius (>1 starts to eat the crown wall)
+  headLong: 2.0, // how far DOWN it reaches to cover the face (bigger covers more brim)
+  headDrop: 0.0, // gap of the proxy's TOP below the board bottom (its top is anchored, not centred)
 };
 // Expose for live tuning from the browser console, e.g. `capConfig.width = 0.9` (applies
 // next frame). Lets you dial size/seat without any UI in the camera code.

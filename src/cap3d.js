@@ -494,11 +494,14 @@ export function createCapRenderer(width = 640, height = 480) {
       skull.scale.y = skullHeight; // taller/shorter crown, live-tunable
       skullDepth.scale.y = skullHeight; // depth twin follows the crown
 
-      // seat the depth-only head proxy: width ~ the crown, stretched down to cover the face, sitting
-      // just under the board. It occludes the board's underside only from the INSIDE (look-up) view.
+      // seat the depth-only head proxy: width ~ the crown, stretched down to cover the face. Its TOP
+      // is anchored just under the board so headLong/headScale only ever reach DOWNWARD over the
+      // face — never UP through the board (a proxy poking above the board would occlude the board's
+      // own top-centre, punching a hole in it). It hides the board underside only from the INSIDE.
       head.visible = headHide;
-      head.position.y = -headDrop;
       head.scale.set(headScale, headScale * headLong, headScale);
+      const headRy = SKULL_R * headScale * headLong; // y-radius after scaling
+      head.position.y = -BOARD_THICK / 2 - headDrop - headRy; // top sits at board-bottom − headDrop
 
       // gravity points to true screen-"down", expressed in the cap's local frame so head
       // tilt makes the tassel sway instead of dragging it around rigidly.
