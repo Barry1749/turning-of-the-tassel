@@ -149,7 +149,11 @@ export function createCapRenderer(width = 640, height = 480) {
   // solid) but draws no COLOR (so you still never see the hollow interior). renderOrder -1 so its
   // depth is laid down before the board, which then fails the depth test where the crown covers it.
   const skullDepthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.BackSide });
-  const skullDepth = new THREE.Mesh(skullGeo, skullDepthMat);
+  // CLOSED cylinder (with end caps) so it also occludes the board through the open top/bottom of the
+  // visible crown — otherwise the board leaks through where the tube is open.
+  const skullDepthGeo = new THREE.CylinderGeometry(SKULL_R, SKULL_R, 1, 32);
+  skullDepthGeo.translate(0, -0.5, 0);
+  const skullDepth = new THREE.Mesh(skullDepthGeo, skullDepthMat);
   skullDepth.position.y = -BOARD_THICK / 2;
   skullDepth.scale.y = 0.5;
   skullDepth.renderOrder = -1;
