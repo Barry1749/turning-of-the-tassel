@@ -144,12 +144,13 @@ export function createCapRenderer(width = 640, height = 480) {
   cap.add(skull);
 
   // FrontSide makes the crown see-through where its wall faces away — so looking up you'd see the
-  // board's underside THROUGH the open tube. Fix: a depth-only back-face twin of the crown. It
-  // writes DEPTH for the tube's far/inner wall (occluding the board behind it, so the band reads
-  // solid) but draws no COLOR (so you still never see the hollow interior). renderOrder -1 so its
-  // depth is laid down before the board, which then fails the depth test where the crown covers it.
-  // polygonOffset nudges this twin's depth slightly BEHIND the visible crown so the two coincident
-  // surfaces don't z-fight (flicker); it still occludes the board, which sits farther back.
+  // board's underside THROUGH the open tube. Fix: a depth-only back-face twin of the crown (same
+  // OPEN-ENDED geometry). It writes DEPTH for the tube's far/inner wall (occluding the board behind
+  // it, so the band reads solid) but draws no COLOR (so you never see the interior). renderOrder -1
+  // lays its depth down before the board, which then fails the depth test where the crown covers it.
+  // polygonOffset nudges its depth slightly BEHIND the visible crown so the coincident surfaces don't
+  // z-fight (flicker), and is what actually keeps the board occluded. (Do NOT give the twin end caps:
+  // a top cap renders a dark dome at the crown↔board join — and isn't needed for occlusion anyway.)
   const skullDepthMat = new THREE.MeshBasicMaterial({
     colorWrite: false,
     side: THREE.BackSide,
@@ -157,11 +158,7 @@ export function createCapRenderer(width = 640, height = 480) {
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
   });
-  // CLOSED cylinder (with end caps) so it also occludes the board through the open top/bottom of the
-  // visible crown — otherwise the board leaks through where the tube is open.
-  const skullDepthGeo = new THREE.CylinderGeometry(SKULL_R, SKULL_R, 1, 32);
-  skullDepthGeo.translate(0, -0.5, 0);
-  const skullDepth = new THREE.Mesh(skullDepthGeo, skullDepthMat);
+  const skullDepth = new THREE.Mesh(skullGeo, skullDepthMat); // shares the open-ended crown geometry
   skullDepth.position.y = -BOARD_THICK / 2;
   skullDepth.scale.y = 0.5;
   skullDepth.renderOrder = -1;
