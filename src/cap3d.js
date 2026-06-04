@@ -22,6 +22,7 @@ const TASSEL_COLOR = 0x3a3a42; // dark tassel (undergraduate = black)
 
 const BOARD_SIZE = 1; // local units; the whole group is scaled to fit the head
 const BOARD_THICK = 0.05;
+const SKULL_R = BOARD_SIZE * 0.34; // crown (skull) cylinder radius
 const BOARD_TOP = BOARD_THICK / 2; // top face of the board — the cord rests on this
 const HALF_DIAG = BOARD_SIZE * Math.SQRT1_2; // centre -> corner of the 45°-rotated board
 const PIN = new THREE.Vector3(0, BOARD_THICK * 1.25, 0); // button top: the cord's anchor
@@ -60,6 +61,8 @@ const _crownPos = new THREE.Vector3(); // crown bottom, where the strands attach
 const _crownQuat = new THREE.Quaternion(); // crown frame (its -Y points down the cord)
 const _root = new THREE.Vector3();
 const _flareDir = new THREE.Vector3();
+const _viewN = new THREE.Vector3(); // cap -> camera direction (crown clip plane normal)
+const _planePt = new THREE.Vector3(); // a point on the crown clip plane
 
 // deterministic per-strand jitter (no Math.random — keeps renders reproducible)
 function pseudo(i) {
@@ -97,6 +100,7 @@ export function createCapRenderer(width = 640, height = 480) {
   renderer.setPixelRatio(1);
   renderer.setSize(width, height, false);
   renderer.setClearColor(0x000000, 0);
+  renderer.localClippingEnabled = true; // for the crown's "your head occludes me" clip plane
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 100);
@@ -115,8 +119,23 @@ export function createCapRenderer(width = 640, height = 480) {
   scene.add(cap);
 
   const boardMat = new THREE.MeshStandardMaterial({ color: BOARD_COLOR, roughness: 0.55, metalness: 0.08 });
-  const skullMat = new THREE.MeshStandardMaterial({ color: SKULL_COLOR, roughness: 0.95, metalness: 0.0 });
   const tasselMat = new THREE.MeshStandardMaterial({ color: TASSEL_COLOR, roughness: 0.8, metalness: 0.0 });
+
+  // The crown is a full tube with no real head inside it, so tilting up lets you see INTO the
+  // tube's far wall (its inside), which reads as the cap covering your face. A real head fills
+  // the cap, hiding whatever is on the far side from the viewer. Fix: clip away the half of the
+  // crown FARTHER from the camera (the view-relative "back"), keeping the near half (the band you
+  // actually see). The plane is rebuilt each frame perpendicular to the camera→cap sightline, so
+  // "back" always means back-from-the-view no matter how the head turns. DoubleSide keeps the kept
+  // half reading as solid black (with an underside) instead of a see-through shell.
+  const crownClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // rebuilt live, world space
+  const skullMat = new THREE.MeshStandardMaterial({
+    color: SKULL_COLOR,
+    roughness: 0.95,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+    clippingPlanes: [crownClip],
+  });
 
   // large flat square board — rotated 45° so a CORNER points forward (worn like a diamond)
   const board = new THREE.Mesh(new THREE.BoxGeometry(BOARD_SIZE, BOARD_THICK, BOARD_SIZE), boardMat);
@@ -126,7 +145,7 @@ export function createCapRenderer(width = 640, height = 480) {
   // cylindrical crown (straight sides, not a bowl) sitting on the head, under the board.
   // Unit-height geometry with its TOP at the local origin, so scale.y grows it DOWNWARD;
   // the height is driven live by capConfig.skullHeight (passed to render()).
-  const skullGeo = new THREE.CylinderGeometry(BOARD_SIZE * 0.34, BOARD_SIZE * 0.34, 1, 32);
+  const skullGeo = new THREE.CylinderGeometry(SKULL_R, SKULL_R, 1, 32);
   skullGeo.translate(0, -0.5, 0);
   const skull = new THREE.Mesh(skullGeo, skullMat);
   skull.position.y = -BOARD_THICK / 2; // top tucks just under the board
@@ -417,10 +436,20 @@ export function createCapRenderer(width = 640, height = 480) {
 
   return {
     canvas,
-    render({ cx, cy, scale, yaw = 0, pitch = 0, roll = 0, tasselAngle = 0, skullHeight = 0.5 }) {
+    render({ cx, cy, scale, yaw = 0, pitch = 0, roll = 0, tasselAngle = 0, skullHeight = 0.5, skullClip = 0.5 }) {
       place(cx, cy, scale);
       cap.rotation.set(pitch, yaw, roll, 'YXZ');
       skull.scale.y = skullHeight; // taller/shorter crown, live-tunable
+
+      // Hide the half of the crown FARTHEST from the camera, keeping the near half — the clip plane
+      // is perpendicular to the camera→cap sightline, so "far" always means far-from-the-viewer no
+      // matter how the head turns. skullClip = fraction KEPT from the near side (where the cut sits):
+      // 0.5 = hide exactly the far half, 1 = whole tube (no hide), 0 = nothing.
+      const s = cap.scale.x; // uniform scale from place()
+      const keep = THREE.MathUtils.clamp(skullClip, 0, 1);
+      _viewN.copy(cap.position).negate().normalize(); // cap -> camera (camera is at the origin)
+      _planePt.copy(cap.position).addScaledVector(_viewN, SKULL_R * s * (1 - 2 * keep));
+      crownClip.setFromNormalAndCoplanarPoint(_viewN, _planePt); // keep the near (+normal) side
 
       // gravity points to true screen-"down", expressed in the cap's local frame so head
       // tilt makes the tassel sway instead of dragging it around rigidly.

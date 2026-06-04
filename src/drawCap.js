@@ -26,6 +26,10 @@ export const capConfig = {
   crownUp: 0.55, // how far above the head pivot the board sits
   crownBack: 0.3, // how far back toward the crown (profile)
   skullHeight: 0.35, // height of the cylindrical crown (bigger = taller cap)
+  // Crown clip — hides the half of the cylinder FARTHEST from the camera (keeps the near half), so
+  // the hollow tube's far/inner wall doesn't read as covering the face when you tilt. The cut is
+  // perpendicular to the camera→cap sightline, so "far" tracks the viewer as the head turns.
+  skullClip: 0.5, // fraction of the crown KEPT from the near side: 1 = whole tube, 0.5 = far half hidden
   yawSign: -1, // flip if turning your head moves the cap the wrong way
   pitchSign: 1,
   rollSign: 1,
@@ -90,7 +94,7 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
 
     const r = getSceneRenderer(vw, vh);
     if (r) {
-      r.render({ cx, cy, scale, yaw, pitch, roll, tasselAngle, skullHeight: capConfig.skullHeight });
+      r.render({ cx, cy, scale, yaw, pitch, roll, tasselAngle, skullHeight: capConfig.skullHeight, skullClip: capConfig.skullClip });
       ctx.drawImage(r.canvas, 0, 0);
     } else {
       drawVectorCap(ctx, cx, cy, scale, roll, tasselAngle);
