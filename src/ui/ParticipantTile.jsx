@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { renderNameCard } from '../drawCap';
 import { REST_ANGLE } from '../tassel';
 
-// One participant. If a MediaStream is present (self-composited or remote Daily video),
+// One participant. If a MediaStream is present (self-composited or remote video),
 // show it; otherwise draw a name-card placeholder whose tassel reflects the live angle.
 export default function ParticipantTile({
   stream,
@@ -19,10 +19,38 @@ export default function ParticipantTile({
   const canvasRef = useRef(null);
   const getAngleRef = useRef(getAngle);
   getAngleRef.current = getAngle;
+  const [needsUnmute, setNeedsUnmute] = useState(false);
 
+  // Attach the stream and start playback. Remote tiles carry audio, so browsers block
+  // autoplay unless the page has a user gesture — and students auto-join from a
+  // personalized link without ever clicking, so they have none. When play() is blocked,
+  // fall back to MUTED playback (always allowed) so the face is still visible, and show a
+  // one-tap control to turn the sound on. (Self is always muted to avoid echo.)
   useEffect(() => {
-    if (stream && videoRef.current) videoRef.current.srcObject = stream;
-  }, [stream]);
+    const v = videoRef.current;
+    if (!stream || !v) return undefined;
+    v.srcObject = stream;
+    v.muted = isSelf;
+    let cancelled = false;
+    (async () => {
+      try {
+        await v.play();
+        if (!cancelled) setNeedsUnmute(false);
+      } catch {
+        if (cancelled) return;
+        v.muted = true;
+        setNeedsUnmute(!isSelf);
+        try {
+          await v.play();
+        } catch {
+          /* a later user gesture (the tap-for-sound button) will retry */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [stream, isSelf]);
 
   useEffect(() => {
     if (stream) return undefined;
@@ -39,14 +67,28 @@ export default function ParticipantTile({
     return () => cancelAnimationFrame(raf);
   }, [stream, name, flag, turned]);
 
+  const enableAudio = () => {
+    const v = videoRef.current;
+    if (v) {
+      v.muted = false;
+      v.play().catch(() => {});
+    }
+    setNeedsUnmute(false);
+  };
+
   const isProf = role === 'host' || role === 'professor';
 
   return (
     <div className={`tile ${isCurrent ? 'current' : ''} ${big ? 'big' : ''}`}>
       {stream ? (
-        <video ref={videoRef} autoPlay playsInline muted={isSelf} />
+        <video ref={videoRef} autoPlay playsInline />
       ) : (
         <canvas ref={canvasRef} />
+      )}
+      {needsUnmute && (
+        <button type="button" className="unmute-btn" onClick={enableAudio}>
+          🔇 Tap for sound
+        </button>
       )}
       <div className="tile-cap">
         {flag && <span className="flag">{flag}</span>} {name}
