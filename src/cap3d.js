@@ -128,8 +128,14 @@ export function createCapRenderer(width = 640, height = 480) {
     side: THREE.FrontSide, // cull interior faces so you never see inside the cap
   });
 
-  // large flat square board — rotated 45° so a CORNER points forward (worn like a diamond)
-  const board = new THREE.Mesh(new THREE.BoxGeometry(BOARD_SIZE, BOARD_THICK, BOARD_SIZE), boardMat);
+  // large flat square board — rotated 45° so a CORNER points forward (worn like a diamond).
+  // Per-face materials: the UNDERSIDE (−Y, BoxGeometry material index 3) uses the matte-black
+  // crown material so it doesn't read as a shiny disc through the crown's open top when you look
+  // up — it blends into the cylinder so the cap looks like one solid piece. All other faces (top,
+  // 4 edges) keep boardMat. Face order is [+X, −X, +Y(top), −Y(bottom), +Z, −Z].
+  const board = new THREE.Mesh(new THREE.BoxGeometry(BOARD_SIZE, BOARD_THICK, BOARD_SIZE), [
+    boardMat, boardMat, boardMat, skullMat, boardMat, boardMat,
+  ]);
   board.rotation.y = Math.PI / 4;
   cap.add(board);
 
