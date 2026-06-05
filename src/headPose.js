@@ -44,6 +44,10 @@ const capSize = {
   ratio: 3.0,          // current size ratio — read it live; write it after autoCalibrate=false
   pitchGate: 0.12,     // |pitch| (radians) below which a frame counts as "frontal" for learning
   ema: 0.05,           // how fast the learned ratio tracks (0 = frozen, 1 = instant but jittery)
+  tolerance: 0.15,     // outlier guard: ignore a calibration frame whose ratio is >15% off the
+                       // established one (a failed/occluded detection — e.g. a hand sweeping across
+                       // the face while turning the tassel), so one bad frame can't permanently
+                       // shrink the cap. Distance still resizes it (that rides on eyeSize, not this).
 };
 if (typeof window !== 'undefined') window.capSize = capSize;
 
@@ -97,8 +101,17 @@ export function computeCapTransform(lm, matrix) {
   if (capSize.autoCalibrate && eyeSize > 1e-4 && Math.abs(pitch) < capSize.pitchGate && Math.abs(yaw) < 0.5) {
     const ratio = faceSpan2D / eyeSize;
     if (ratio > 1.2 && ratio < 4.5) {
-      if (!restCalibrated) { capSize.ratio = ratio; restCalibrated = true; }
-      else capSize.ratio += capSize.ema * (ratio - capSize.ratio);
+      if (!restCalibrated) {
+        capSize.ratio = ratio; // first frontal frame: snap to a correct size immediately
+        restCalibrated = true;
+      } else if (Math.abs(ratio - capSize.ratio) <= capSize.tolerance * capSize.ratio) {
+        // Outlier guard (fix for "the cap shrinks after turning the tassel a couple times"): a
+        // hand sweeping across the face — or any momentary mis-detection — returns a wildly
+        // different forehead<->chin span. Only fold the measurement into the EMA when it's within
+        // `tolerance` of the established ratio; otherwise drop it as a failed detection so it can't
+        // permanently ratchet the size down.
+        capSize.ratio += capSize.ema * (ratio - capSize.ratio);
+      }
     }
   }
 
