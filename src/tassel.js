@@ -3,7 +3,7 @@
 //   angle > 0  => tassel on the RIGHT (resting / not graduated)
 //   angle < 0  => tassel on the LEFT (turned / graduated)
 //
-// Mapping is RELATIVE: when you pinch we anchor to your hand's position, then a leftward
+// Mapping is RELATIVE: when you pinch we anchor to your hand's position, then a rightward
 // sweep of ~SWEEP_DIST of the frame width turns the tassel fully. Commit is judged on
 // where the hand swept to at release (not the spring-lagged angle), so a quick flick
 // still counts.
@@ -12,7 +12,7 @@ export const ANGLE_MAX = 1.05; // ~60 degrees
 export const REST_ANGLE = ANGLE_MAX; // rests on the right
 
 const COMMIT = ANGLE_MAX * 0.5; // target must pass this (to the left) to count as turned
-const SWEEP_DIST = 0.22; // normalized hand travel (left) for a full turn
+const SWEEP_DIST = 0.22; // normalized hand travel (right) for a full turn
 const SPAN = REST_ANGLE + ANGLE_MAX; // swing range, REST(+) down to -MAX
 
 const STIFFNESS = 140;
@@ -45,8 +45,8 @@ export class TasselController {
           this.state = 'engaged';
           this.x0 = g.x; // anchor at the grab point
         }
-        const delta = g.x - this.x0; // negative = swept left (screen space)
-        const progress = clamp(-delta / SWEEP_DIST, 0, 1);
+        const delta = g.x - this.x0; // positive = swept right (screen space)
+        const progress = clamp(delta / SWEEP_DIST, 0, 1);
         this.target = REST_ANGLE - progress * SPAN; // 0 -> REST, 1 -> -MAX
       } else if (this.state === 'engaged') {
         // released: judge by where the hand swept to (this.target), not the lagged angle
