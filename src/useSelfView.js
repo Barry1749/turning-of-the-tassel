@@ -1,6 +1,9 @@
 // Manages the local camera. Shows the camera video IMMEDIATELY (as a captured canvas
 // stream) and loads the MediaPipe models in parallel, so a slow/failed model load never
-// blocks the video. For the host the tassel "controller" is the single source of truth:
+// blocks the video. We expose TWO video streams: `stream` is the mirrored selfie (shown on
+// the owner's own tile) and `publishStream` is the same composite un-mirrored (broadcast to
+// peers, so others see the real, non-mirrored image). For the host the tassel "controller"
+// is the single source of truth:
 // the hand gesture (when enabled), the manual-turn button, and reset all drive it, and
 // its angle is streamed every frame so the spotlighted student's tassel follows.
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -8,7 +11,7 @@ import { createLandmarkers } from './vision';
 import { computeCapTransform } from './headPose';
 import { createGestureTracker } from './gesture';
 import { TasselController, REST_ANGLE } from './tassel';
-import { drawScene } from './drawCap';
+import { drawScene, drawFlippedX } from './drawCap';
 
 async function getCamera() {
   const video = { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' };
@@ -21,7 +24,8 @@ async function getCamera() {
 }
 
 export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, getDrawAngle, onTassel, onCommit }) {
-  const [stream, setStream] = useState(null);
+  const [stream, setStream] = useState(null); // mirrored composite — the owner's own tile
+  const [publishStream, setPublishStream] = useState(null); // un-mirrored composite — sent to peers
   const [status, setStatus] = useState('idle'); // idle | starting | ready | error
   const [error, setError] = useState('');
   const [arReady, setArReady] = useState(false);
@@ -71,10 +75,17 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
       canvas.width = 1280;
       canvas.height = 720;
 
+      // Holds the un-mirrored composite (canvas flipped back each frame). Captured separately
+      // and published to peers so others see the real image while we keep our mirrored selfie.
+      const pubCanvas = document.createElement('canvas');
+      pubCanvas.width = 1280;
+      pubCanvas.height = 720;
+
       Object.assign(R, {
         media,
         video,
         canvas,
+        pubCanvas,
         faceLandmarker: null,
         handLandmarker: null,
         gesture: createGestureTracker(),
@@ -87,10 +98,15 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
         running: true,
       });
 
-      const out = canvas.captureStream(30);
+      const out = canvas.captureStream(30); // mirrored — the owner's own self-view tile
       const audio = media.getAudioTracks()[0];
       if (audio) out.addTrack(audio);
       setStream(out);
+
+      const pubOut = pubCanvas.captureStream(30); // un-mirrored — the feed broadcast to peers
+      if (audio) pubOut.addTrack(audio); // a track can belong to both streams; audio is unflipped
+      setPublishStream(pubOut);
+
       setStatus('ready');
       requestAnimationFrame(loop);
 
@@ -165,6 +181,7 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
 
         S.lastNow = now;
         drawScene(canvas, video, cap, drawAngle, gestureForMarker);
+        if (S.pubCanvas) drawFlippedX(S.pubCanvas, canvas); // un-mirror for the published feed
 
         S.frame += 1;
         if (S.frame % 8 === 0) {
@@ -183,6 +200,7 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
       S.running = false;
       S.media?.getTracks().forEach((t) => t.stop());
       setStream(null);
+      setPublishStream(null);
       setStatus('idle');
       setArReady(false);
       setArError('');
@@ -196,5 +214,5 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
     ref.current.controller?.forceTurn();
   }, []);
 
-  return { stream, status, error, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture };
+  return { stream, publishStream, status, error, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture };
 }

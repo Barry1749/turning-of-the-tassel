@@ -1,5 +1,6 @@
-// Mortarboard + tassel rendering. Used three ways:
-//   drawScene()      - composite a mirrored camera frame + 3D cap (the self/published view)
+// Mortarboard + tassel rendering. Used four ways:
+//   drawScene()      - composite a mirrored camera frame + 3D cap (the local self-view)
+//   drawFlippedX()   - un-mirror that composite onto a 2nd canvas (the feed published to peers)
 //   renderNameCard() - a placeholder card (no video) with a cap, for remote students
 //                      whose video isn't present (dev mode / no camera)
 //   drawVectorCap()  - a flat fallback if WebGL is unavailable
@@ -149,6 +150,24 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
     ctx.fill();
     ctx.restore();
   }
+}
+
+// Mirror a finished frame back onto another canvas. The self-view is mirrored (a selfie feels
+// natural to the wearer), but remote viewers should see the real, un-mirrored image. We flip
+// the WHOLE composite — camera + baked-in cap — as one unit, so the cap stays correctly seated
+// on the head; the result is the stream useSelfView publishes to peers.
+export function drawFlippedX(dst, src) {
+  const w = src.width;
+  const h = src.height;
+  if (!w || !h) return;
+  if (dst.width !== w) dst.width = w;
+  if (dst.height !== h) dst.height = h;
+  const ctx = dst.getContext('2d');
+  ctx.save();
+  ctx.translate(w, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(src, 0, 0);
+  ctx.restore();
 }
 
 export function renderNameCard(canvas, { name = '', flag = '🎓', angle = REST_ANGLE, turned = false, degree = 'bachelor' }) {

@@ -50,7 +50,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
 
   // MC needs no camera (phone-friendly); professor + students do.
   const needCamera = isProfessor || role === 'student';
-  const { stream: selfStream, status: camStatus, error: camError, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture } = useSelfView({
+  const { stream: selfStream, publishStream, status: camStatus, error: camError, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture } = useSelfView({
     active: needCamera,
     isHost: isProfessor,
     gestureEnabled: gestureOn,
@@ -67,9 +67,11 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   const dailyEnabled = !liveKitEnabled && !!roomUrl;
   const p2pEnabled = !liveKitEnabled && !dailyEnabled;
 
-  const lk = useLiveKit({ enabled: liveKitEnabled, url: liveKitUrl, identity: myId, name, selfStream });
-  const daily = useDaily({ roomUrl: dailyEnabled ? roomUrl : '', name, selfStream });
-  const p2p = useP2P({ enabled: p2pEnabled, myId, myRole: role, participants, selfStream, send, signalRef });
+  // Publish the un-mirrored composite so remote peers see the real image; our own tile keeps
+  // the mirrored `selfStream` (passed to Gallery/Spotlight below).
+  const lk = useLiveKit({ enabled: liveKitEnabled, url: liveKitUrl, identity: myId, name, selfStream: publishStream });
+  const daily = useDaily({ roomUrl: dailyEnabled ? roomUrl : '', name, selfStream: publishStream });
+  const p2p = useP2P({ enabled: p2pEnabled, myId, myRole: role, participants, selfStream: publishStream, send, signalRef });
 
   const video = liveKitEnabled ? lk : dailyEnabled ? daily : p2p;
   const remote = video.remote;
