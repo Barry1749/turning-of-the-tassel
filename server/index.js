@@ -15,10 +15,12 @@ dotenv.config();
 const PORT = process.env.PORT || 3001;
 const REST_ANGLE = 1.05; // tassel resting on the right (must match the client)
 
+// degree drives the tassel colour (bachelor | master | phd); the MC can change it per student.
 const SAMPLE_ROSTER = ['Mei-Ling Chen', 'Wei Kang', 'Sofia Rossi', 'Arjun Patel'].map((name) => ({
   id: randomUUID(),
   name,
   turned: false,
+  degree: 'bachelor',
 }));
 
 const state = {
@@ -153,7 +155,7 @@ wss.on('connection', (ws) => {
           me.name &&
           !state.roster.some((s) => s.name.toLowerCase() === me.name.toLowerCase())
         ) {
-          state.roster.push({ id: randomUUID(), name: me.name, turned: false });
+          state.roster.push({ id: randomUUID(), name: me.name, turned: false, degree: 'bachelor' });
         }
         send(ws, { type: 'welcome', id: me.id, state });
         broadcastParticipants();
@@ -203,7 +205,7 @@ wss.on('connection', (ws) => {
       }
       case 'addStudent':
         if (!isHost(me)) break;
-        state.roster.push({ id: randomUUID(), name: msg.name || 'New Student', turned: false });
+        state.roster.push({ id: randomUUID(), name: msg.name || 'New Student', turned: false, degree: msg.degree || 'bachelor' });
         broadcastState();
         break;
 

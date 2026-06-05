@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DEGREE_TASSELS, tasselColorFor } from '../drawCap';
 
 // Control panel for any controller (MC / professor / host).
 //   - canEditRoster (MC / host): ceremony info, program order, add/remove, join links
@@ -19,6 +20,7 @@ export default function MCPanel({
 }) {
   const [open, setOpen] = useState(true);
   const [newName, setNewName] = useState('');
+  const [newDegree, setNewDegree] = useState('bachelor'); // degree for the next student added
   const [uni, setUni] = useState(cstate.university || '');
   const [dept, setDept] = useState(cstate.department || '');
   const [copied, setCopied] = useState(null);
@@ -29,8 +31,8 @@ export default function MCPanel({
 
   const addStudent = () => {
     if (!newName.trim()) return;
-    actions.addStudent({ name: newName.trim() });
-    setNewName('');
+    actions.addStudent({ name: newName.trim(), degree: newDegree });
+    setNewName(''); // keep newDegree so several same-degree students can be added in a row
   };
 
   const joinLink = (s) =>
@@ -96,8 +98,21 @@ export default function MCPanel({
             {roster.map((s) => (
               <li key={s.id} className={s.id === cstate.currentId ? 'cur' : ''}>
                 <span className="r-name" onClick={() => actions.select(s.id)} title="Spotlight this student">
+                  <span className="r-dot" style={{ background: tasselColorFor(s.degree) }} title={`${s.degree || 'bachelor'} tassel`} />
                   {s.name} {s.turned ? <em>✓</em> : ''}
                 </span>
+                {canEditRoster && (
+                  <select
+                    className="r-degree"
+                    value={s.degree || 'bachelor'}
+                    onChange={(e) => actions.setDegree(s.id, e.target.value)}
+                    title="Degree — sets the tassel colour"
+                  >
+                    {DEGREE_TASSELS.map((d) => (
+                      <option key={d.id} value={d.id}>{d.label}</option>
+                    ))}
+                  </select>
+                )}
                 {canEditRoster && (
                   <span className="r-actions">
                     <button onClick={() => copyLink(s)} title="Copy this student's personal join link">
@@ -121,6 +136,16 @@ export default function MCPanel({
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addStudent()}
               />
+              <select
+                className="mc-degree-new"
+                value={newDegree}
+                onChange={(e) => setNewDegree(e.target.value)}
+                title="Degree for the new student — sets their tassel colour"
+              >
+                {DEGREE_TASSELS.map((d) => (
+                  <option key={d.id} value={d.id}>{d.label}</option>
+                ))}
+              </select>
               <button onClick={addStudent}>Add</button>
             </div>
           )}

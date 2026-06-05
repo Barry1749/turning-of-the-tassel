@@ -35,6 +35,7 @@ export default function Gallery({ cstate, participants, myId, myName, selfStream
             isSelf={isSelf}
             isCurrent={isCurrent}
             turned={s?.turned}
+            degree={s?.degree}
             getAngle={() => (isCurrent ? tasselRef.current.angle : REST_ANGLE)}
           />
         );

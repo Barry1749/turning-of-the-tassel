@@ -5,6 +5,7 @@ import { useDaily } from '../daily';
 import { useP2P } from '../useP2P';
 import { useLiveKit } from '../useLiveKit';
 import { REST_ANGLE, ANGLE_MAX } from '../tassel';
+import { setSelfDegree } from '../drawCap';
 import { celebrate, initAudio } from '../effects';
 import Stage from './Stage';
 import MCPanel from './MCPanel';
@@ -22,6 +23,16 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
 
   const roster = cstate?.roster || [];
   const currentStudent = roster.find((s) => s.id === cstate?.currentId) || null;
+
+  // My own degree drives my self-view tassel colour. Find my roster entry by name and push it
+  // into the cap renderer; it re-applies live whenever the MC changes my degree.
+  const myDegree = useMemo(
+    () => roster.find((s) => s.name.toLowerCase() === name.toLowerCase())?.degree || 'bachelor',
+    [roster, name],
+  );
+  useEffect(() => {
+    setSelfDegree(myDegree);
+  }, [myDegree]);
 
   const amCurrentRef = useRef(false);
   amCurrentRef.current = !!(role === 'student' && currentStudent && currentStudent.name.toLowerCase() === name.toLowerCase());
@@ -111,6 +122,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     reorder: (id, dir) => send({ type: 'reorder', id, dir }),
     addStudent: (s) => send({ type: 'addStudent', ...s }),
     setInfo: (info) => send({ type: 'setInfo', ...info }),
+    setDegree: (id, degree) => send({ type: 'updateStudent', id, fields: { degree } }),
     removeStudent: (id) => send({ type: 'removeStudent', id }),
     countdown: (n) => send({ type: 'startCountdown', n }),
     resetTassel: () => {

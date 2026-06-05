@@ -416,6 +416,31 @@ button.link {
   color: #7cfc9b;
   font-style: normal;
 }
+/* tassel-colour swatch for the student's degree */
+.mc-roster .r-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+/* degree picker — sets the tassel colour */
+.mc-roster .r-degree {
+  flex: 0 0 auto;
+  margin: 0 4px;
+  max-width: 88px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 0.72rem;
+}
+.mc-roster .r-degree option {
+  color: #000; /* native dropdown list renders on a light background */
+}
 .mc-roster .r-actions {
   display: flex;
   gap: 2px;
@@ -444,9 +469,23 @@ button.link {
 .mc-add {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 .mc-add .mc-in {
-  flex: 1;
+  flex: 1 1 120px;
+  min-width: 110px;
+}
+/* degree picker on the add-student row — sets the new student's tassel colour */
+.mc-degree-new {
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 0.82rem;
+}
+.mc-degree-new option {
+  color: #000; /* native dropdown list renders on a light background */
 }
 .mc-check {
   display: flex;

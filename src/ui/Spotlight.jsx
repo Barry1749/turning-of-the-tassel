@@ -43,6 +43,7 @@ export default function Spotlight({ cstate, participants, myId, selfStream, remo
             isSelf={studentP?.id === myId}
             isCurrent
             turned={current?.turned}
+            degree={current?.degree}
             getAngle={() => tasselRef.current.angle}
           />
           {current && (

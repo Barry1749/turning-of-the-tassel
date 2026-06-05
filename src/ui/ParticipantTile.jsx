@@ -12,6 +12,7 @@ export default function ParticipantTile({
   isSelf,
   isCurrent,
   turned,
+  degree,
   getAngle,
   big,
 }) {
@@ -59,13 +60,13 @@ export default function ParticipantTile({
       const canvas = canvasRef.current;
       if (canvas) {
         const a = getAngleRef.current ? getAngleRef.current() : REST_ANGLE;
-        renderNameCard(canvas, { name, flag, angle: a, turned });
+        renderNameCard(canvas, { name, flag, angle: a, turned, degree });
       }
       raf = requestAnimationFrame(loop);
     };
     loop();
     return () => cancelAnimationFrame(raf);
-  }, [stream, name, flag, turned]);
+  }, [stream, name, flag, turned, degree]);
 
   const enableAudio = () => {
     const v = videoRef.current;

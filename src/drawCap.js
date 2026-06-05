@@ -43,6 +43,30 @@ export const capConfig = {
 // next frame). Lets you dial size/seat without any UI in the camera code.
 if (typeof window !== 'undefined') window.capConfig = capConfig;
 
+// Tassel colour by academic degree. A ceremony can mix degrees, so each graduand carries
+// their own `degree` in the roster (set by the MC in MCPanel); the cap colours its whole
+// tassel + cord to match — bachelors, masters and doctors differ. `bachelor` keeps the
+// established undergraduate look. Tunable live, e.g. `degreeTassels.master = '#7a1e3a'`.
+export const DEGREE_TASSELS = [
+  { id: 'bachelor', label: 'Bachelor', color: '#3a3a42' }, // 學士 — classic undergraduate black
+  { id: 'master', label: 'Master', color: '#3a57c8' }, // 碩士 — academic blue
+  { id: 'phd', label: 'PhD', color: '#f2c14e' }, // 博士 — gold (the doctoral prestige colour)
+];
+const degreeTassels = Object.fromEntries(DEGREE_TASSELS.map((d) => [d.id, d.color]));
+if (typeof window !== 'undefined') window.degreeTassels = degreeTassels; // live-tunable palette
+
+export function tasselColorFor(degree) {
+  return degreeTassels[degree] || degreeTassels.bachelor;
+}
+
+// The local wearer's degree drives their self-view tassel colour. CeremonyApp pushes it
+// here from the roster (so it updates live when the MC changes it). Name cards instead pass
+// their own student's degree straight into renderNameCard().
+let selfDegree = 'bachelor';
+export function setSelfDegree(degree) {
+  selfDegree = degree || 'bachelor';
+}
+
 const _euler = new Euler(0, 0, 0, 'YXZ');
 const _off = new Vector3();
 
@@ -99,6 +123,7 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
 
     const r = getSceneRenderer(vw, vh);
     if (r) {
+      r.setColors({ tassel: tasselColorFor(selfDegree) }); // bachelor / master / phd
       r.render({
         cx, cy, scale, yaw, pitch, roll, tasselAngle,
         skullHeight: capConfig.skullHeight,
@@ -126,7 +151,7 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
   }
 }
 
-export function renderNameCard(canvas, { name = '', flag = '🎓', angle = REST_ANGLE, turned = false }) {
+export function renderNameCard(canvas, { name = '', flag = '🎓', angle = REST_ANGLE, turned = false, degree = 'bachelor' }) {
   if (canvas.width !== 640) canvas.width = 640;
   if (canvas.height !== 480) canvas.height = 480;
   const ctx = canvas.getContext('2d');
@@ -157,6 +182,9 @@ export function renderNameCard(canvas, { name = '', flag = '🎓', angle = REST_
   const scale = headR * 2.3 * capConfig.width;
   const r = getCardRenderer();
   if (r) {
+    // The card renderer is shared by every name-card tile, so set this student's tassel colour
+    // each call (right before render) — consecutive tiles may be different degrees.
+    r.setColors({ tassel: tasselColorFor(degree) });
     // headHide off here: the name card has no real head/video behind the cap, so an occluder would
     // just punch a transparent hole in the board. Show the board solid instead.
     r.render({ cx, cy: capY, scale, yaw: 0, pitch: 0, roll: 0, tasselAngle: angle, skullHeight: capConfig.skullHeight, skullThick: capConfig.skullThick, skullLong: capConfig.skullLong, skullWall: capConfig.skullWall, headHide: false });
