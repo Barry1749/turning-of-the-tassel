@@ -121,9 +121,11 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     select: (id) => send({ type: 'selectStudent', id }),
     reorder: (id, dir) => send({ type: 'reorder', id, dir }),
     addStudent: (s) => send({ type: 'addStudent', ...s }),
+    addProfessor: (p) => send({ type: 'addProfessor', ...p }),
     setInfo: (info) => send({ type: 'setInfo', ...info }),
     setDegree: (id, degree) => send({ type: 'updateStudent', id, fields: { degree } }),
     removeStudent: (id) => send({ type: 'removeStudent', id }),
+    removeProfessor: (id) => send({ type: 'removeProfessor', id }),
     countdown: (n) => send({ type: 'startCountdown', n }),
     resetTassel: () => {
       if (isProfessor) resetGesture();

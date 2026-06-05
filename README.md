@@ -35,8 +35,9 @@ Open **http://localhost:5173** in Chrome/Edge. (You can also run the two separat
 The MC and the Professor can be **two different devices** (e.g. MC on a phone, Professor on a
 laptop with a webcam):
 
-- **Master of Ceremony** (`mc`) — control panel only: sequence the program, next/prev, mode,
-  countdown. **No camera needed — runs fine on a phone.**
+- **Master of Ceremony** (`mc`) — control panel only: build the program (add/remove students
+  **and professors**, share each person's join link), sequence it, next/prev, mode, countdown.
+  **No camera needed — runs fine on a phone.**
 - **Professor** (`professor`) — the camera device that performs the **hand gesture** (plus the
   manual/commit fallback). Only this device runs hand tracking.
 - **Professor + MC** (`host`) — both jobs on one device (solo case).

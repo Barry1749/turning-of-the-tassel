@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { DEGREE_TASSELS, tasselColorFor } from '../drawCap';
 
 // Control panel for any controller (MC / professor / host).
-//   - canEditRoster (MC / host): ceremony info, program order, add/remove, join links
+//   - canEditRoster (MC / host): ceremony info, program order, add/remove students &
+//     professors, per-person join links
 //   - flow control (mode, prev/next, spotlight): all controllers
 //   - tassel-turn controls: in ceremony mode; the hand-gesture toggle is the professor's
 export default function MCPanel({
@@ -21,11 +22,13 @@ export default function MCPanel({
   const [open, setOpen] = useState(true);
   const [newName, setNewName] = useState('');
   const [newDegree, setNewDegree] = useState('bachelor'); // degree for the next student added
+  const [newProf, setNewProf] = useState(''); // name for the next professor added
   const [uni, setUni] = useState(cstate.university || '');
   const [dept, setDept] = useState(cstate.department || '');
   const [copied, setCopied] = useState(null);
 
   const roster = cstate.roster || [];
+  const professors = cstate.professors || [];
   const ceremony = cstate.mode === 'ceremony';
   const current = roster.find((s) => s.id === cstate.currentId) || null;
 
@@ -34,14 +37,20 @@ export default function MCPanel({
     actions.addStudent({ name: newName.trim(), degree: newDegree });
     setNewName(''); // keep newDegree so several same-degree students can be added in a row
   };
+  const addProfessor = () => {
+    if (!newProf.trim()) return;
+    actions.addProfessor({ name: newProf.trim() });
+    setNewProf('');
+  };
 
-  const joinLink = (s) =>
-    `${location.origin}${location.pathname}?role=student&name=${encodeURIComponent(s.name)}&autojoin=1`;
-  const copyLink = async (s) => {
+  // Personal join link for a roster person — opens already named and auto-joins in their role.
+  const joinLink = (pname, jrole) =>
+    `${location.origin}${location.pathname}?role=${jrole}&name=${encodeURIComponent(pname)}&autojoin=1`;
+  const copyLink = async (id, link) => {
     try {
-      await navigator.clipboard.writeText(joinLink(s));
-      setCopied(s.id);
-      setTimeout(() => setCopied((c) => (c === s.id ? null : c)), 1500);
+      await navigator.clipboard.writeText(link);
+      setCopied(id);
+      setTimeout(() => setCopied((c) => (c === id ? null : c)), 1500);
     } catch {
       /* clipboard blocked */
     }
@@ -115,7 +124,7 @@ export default function MCPanel({
                 )}
                 {canEditRoster && (
                   <span className="r-actions">
-                    <button onClick={() => copyLink(s)} title="Copy this student's personal join link">
+                    <button onClick={() => copyLink(s.id, joinLink(s.name, 'student'))} title="Copy this student's personal join link">
                       {copied === s.id ? '✓' : '🔗'}
                     </button>
                     <button onClick={() => actions.reorder(s.id, 'up')} title="Move up">↑</button>
@@ -148,6 +157,36 @@ export default function MCPanel({
               </select>
               <button onClick={addStudent}>Add</button>
             </div>
+          )}
+
+          {canEditRoster && (
+            <>
+              <div className="mc-section">Professors</div>
+              <ol className="mc-roster">
+                {professors.length === 0 && <li className="r-empty">No professors yet</li>}
+                {professors.map((p) => (
+                  <li key={p.id}>
+                    <span className="r-name r-static">🎓 {p.name}</span>
+                    <span className="r-actions">
+                      <button onClick={() => copyLink(p.id, joinLink(p.name, 'professor'))} title="Copy this professor's personal join link">
+                        {copied === p.id ? '✓' : '🔗'}
+                      </button>
+                      <button onClick={() => actions.removeProfessor(p.id)} title="Remove">✕</button>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <div className="mc-add">
+                <input
+                  className="mc-in"
+                  placeholder="Add professor name"
+                  value={newProf}
+                  onChange={(e) => setNewProf(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addProfessor()}
+                />
+                <button onClick={addProfessor}>Add</button>
+              </div>
+            </>
           )}
 
           {ceremony && (

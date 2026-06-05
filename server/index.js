@@ -26,6 +26,7 @@ const SAMPLE_ROSTER = ['Mei-Ling Chen', 'Wei Kang', 'Sofia Rossi', 'Arjun Patel'
 const state = {
   mode: 'normal', // 'normal' | 'ceremony'
   roster: SAMPLE_ROSTER,
+  professors: [], // people who turn the tassel; the MC can add them + share join links
   currentId: null, // spotlighted student
   tassel: { angle: REST_ANGLE, engaged: false },
   countdown: null,
@@ -157,6 +158,14 @@ wss.on('connection', (ws) => {
         ) {
           state.roster.push({ id: randomUUID(), name: me.name, turned: false, degree: 'bachelor' });
         }
+        // auto-add a joining professor to the MC's list (so they can be tracked / re-invited)
+        if (
+          me.role === 'professor' &&
+          me.name &&
+          !state.professors.some((p) => p.name.toLowerCase() === me.name.toLowerCase())
+        ) {
+          state.professors.push({ id: randomUUID(), name: me.name });
+        }
         send(ws, { type: 'welcome', id: me.id, state });
         broadcastParticipants();
         broadcastState();
@@ -228,6 +237,16 @@ wss.on('connection', (ws) => {
         broadcastState();
         break;
       }
+      case 'addProfessor':
+        if (!isHost(me)) break;
+        state.professors.push({ id: randomUUID(), name: msg.name || 'New Professor' });
+        broadcastState();
+        break;
+      case 'removeProfessor':
+        if (!isHost(me)) break;
+        state.professors = state.professors.filter((p) => p.id !== msg.id);
+        broadcastState();
+        break;
       case 'startCountdown':
         if (!isHost(me)) break;
         startCountdown(Math.max(1, msg.n || 3));
