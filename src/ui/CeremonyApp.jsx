@@ -23,6 +23,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
 
   const roster = cstate?.roster || [];
   const currentStudent = roster.find((s) => s.id === cstate?.currentId) || null;
+  const guestCount = participants.filter((p) => p.role === 'guest').length; // watch-only; counted, not listed
 
   // My own degree drives my self-view tassel colour. Find my roster entry by name and push it
   // into the cap renderer; it re-applies live whenever the MC changes my degree.
@@ -182,6 +183,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
           cstate={cstate}
           actions={actions}
           canEditRoster={canEditRoster}
+          guestCount={guestCount}
           isProfessor={isProfessor}
           gestureOn={gestureOn}
           setGestureOn={setGestureOn}

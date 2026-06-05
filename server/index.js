@@ -75,7 +75,15 @@ const server = http.createServer(async (req, res) => {
 const wss = new WebSocketServer({ server });
 
 function participantList() {
-  return [...clients.values()].map(({ id, role, name }) => ({ id, role, name }));
+  // Skip sockets that connected but haven't announced their role yet ('pending'),
+  // so a connecting client is never miscounted (e.g. as a guest) before its hello.
+  return [...clients.values()]
+    .filter((m) => m.role !== 'pending')
+    .map(({ id, role, name }) => ({ id, role, name }));
+}
+// Heartbeat marker: the client's pong (browsers auto-reply) proves it's still there.
+function heartbeat() {
+  this.isAlive = true;
 }
 function send(ws, obj) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj));
@@ -131,7 +139,10 @@ function startCountdown(n) {
 }
 
 wss.on('connection', (ws) => {
-  const meta = { id: randomUUID(), role: 'guest', name: 'Guest' };
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
+  // 'pending' until the client's hello says who it is — so it isn't counted yet.
+  const meta = { id: randomUUID(), role: 'pending', name: 'Guest' };
   clients.set(ws, meta);
   send(ws, { type: 'welcome', id: meta.id, state });
   broadcastParticipants();
@@ -305,6 +316,26 @@ wss.on('connection', (ws) => {
     broadcastParticipants();
   });
 });
+
+// Reap dead connections every 30s: any socket that missed the previous ping's pong
+// is gone (closed tab, dropped network, backgrounded phone). This keeps the
+// participant list / guest count honest instead of accumulating zombies.
+const HEARTBEAT_MS = 30000;
+const heartbeatTimer = setInterval(() => {
+  let reaped = false;
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) {
+      clients.delete(ws);
+      ws.terminate();
+      reaped = true;
+      continue;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  }
+  if (reaped) broadcastParticipants();
+}, HEARTBEAT_MS);
+wss.on('close', () => clearInterval(heartbeatTimer));
 
 server.listen(PORT, () => {
   console.log(`Ceremony server listening on http://localhost:${PORT}`);

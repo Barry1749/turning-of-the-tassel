@@ -1,31 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 const params = new URLSearchParams(location.search);
 
+// Fallback lobby, shown only after someone hits "Leave". The starting scene is the MC
+// panel and everyone else arrives through a personal link (both resolved in App.jsx), so
+// this manual picker is just a re-entry point — it defaults to the MC.
 export default function JoinScreen({ onJoin, onSolo }) {
   const [name, setName] = useState(params.get('name') || '');
-  const [role, setRole] = useState(params.get('role') || 'guest');
+  const [role, setRole] = useState(params.get('role') || 'mc');
   const [roomUrl, setRoomUrl] = useState(params.get('room') || import.meta.env.VITE_DAILY_ROOM_URL || '');
-  const autoDone = useRef(false);
 
   const submit = (e) => {
     if (e) e.preventDefault();
     if (name.trim()) onJoin({ name: name.trim(), role, roomUrl: roomUrl.trim() });
   };
-
-  // A personalized link (?role=student&name=…&autojoin=1) joins straight away.
-  useEffect(() => {
-    if (autoDone.current) return;
-    if (params.get('autojoin') && (params.get('name') || '').trim()) {
-      autoDone.current = true;
-      onJoin({
-        name: params.get('name').trim(),
-        role: params.get('role') || 'student',
-        roomUrl: (params.get('room') || import.meta.env.VITE_DAILY_ROOM_URL || '').trim(),
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div className="join">

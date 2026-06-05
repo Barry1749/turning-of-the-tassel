@@ -10,6 +10,7 @@ export default function MCPanel({
   cstate,
   actions,
   canEditRoster,
+  guestCount,
   isProfessor,
   gestureOn,
   setGestureOn,
@@ -43,9 +44,20 @@ export default function MCPanel({
     setNewProf('');
   };
 
+  // Build a join link, carrying over the MC's own connection context (ws / room) so
+  // everyone lands on the SAME ceremony backend + video room the MC is on. In dev / tunnel
+  // setups these live in the URL; in production they come from env, so the link stays clean.
+  const makeLink = (extra) => {
+    const p = new URLSearchParams();
+    const cur = new URLSearchParams(location.search);
+    for (const k of ['ws', 'room']) if (cur.get(k)) p.set(k, cur.get(k));
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    return `${location.origin}${location.pathname}?${p.toString()}`;
+  };
   // Personal join link for a roster person — opens already named and auto-joins in their role.
-  const joinLink = (pname, jrole) =>
-    `${location.origin}${location.pathname}?role=${jrole}&name=${encodeURIComponent(pname)}&autojoin=1`;
+  const joinLink = (pname, jrole) => makeLink({ role: jrole, name: pname, autojoin: '1' });
+  // One shared watch-only link for guests — anonymous, so it carries no name (they're counted, not listed).
+  const guestLink = () => makeLink({ role: 'guest', autojoin: '1' });
   const copyLink = async (id, link) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -185,6 +197,17 @@ export default function MCPanel({
                   onKeyDown={(e) => e.key === 'Enter' && addProfessor()}
                 />
                 <button onClick={addProfessor}>Add</button>
+              </div>
+
+              <div className="mc-section">
+                Guests · {guestCount}
+                <button
+                  className="mc-reset"
+                  onClick={() => copyLink('guest', guestLink())}
+                  title="Copy the shared watch-only guest link"
+                >
+                  {copied === 'guest' ? '✓ copied' : '🔗 guest link'}
+                </button>
               </div>
             </>
           )}
