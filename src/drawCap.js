@@ -28,7 +28,8 @@ export const capConfig = {
   crownBack: 0.3, // how far back toward the crown (profile)
   skullHeight: 0.35, // height of the cylindrical crown (bigger = taller cap)
   skullThick: 1.0, // overall crown radius (width) multiplier — keep at 1.0 (this is NOT material thickness)
-  skullLong: 1.3, // crown oval: stretch along nose↔back (a real head is longer front-to-back than ear-to-ear)
+  skullLong: 1.3, // crown oval at FRONTAL view: stretch along nose↔back (a real head is longer front-to-back than ear-to-ear). The self-view bends this with head yaw (see skullLongYaw); name cards use it as-is.
+  skullLongYaw: -0.3, // how far skullLong shifts at FULL profile (a ±90° turn), scaled by sin(|yaw|). Negative pulls the oval toward round as you turn — counters the crown looking wider/bigger side-on, so the cap holds its apparent size instead of resizing on a turn; positive exaggerates the front↔back stretch; 0 = no turn response.
   skullWall: 0.02, // crown WALL thickness (material depth) in local units; 0 = paper-thin shell, bigger = chunkier band
   yawSign: -1, // flip if turning your head moves the cap the wrong way
   pitchSign: 1,
@@ -115,6 +116,13 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
     const pitch = capConfig.pitchSign * (cap.pitch || 0);
     const roll = capConfig.rollSign * cap.roll;
 
+    // Turning toward profile swings the crown's long (nose↔back) axis into the screen, so a fixed
+    // skullLong makes the cap look wider/bigger side-on (this is the apparent "resizing on turn").
+    // Hold the cap's overall size and bend skullLong with the yaw instead: sin(|yaw|) is 0 looking
+    // straight on (where skullLong is all depth, invisible to width) and 1 at full profile.
+    const turn = Math.sin(Math.min(Math.PI / 2, Math.abs(yaw)));
+    const skullLong = Math.max(0.3, capConfig.skullLong + capConfig.skullLongYaw * turn);
+
     // 3D crown anchor: offset up + back from the head pivot in the head's rotated frame,
     // so the cap orbits onto the crown as the head turns (rides on the head, not the face).
     _euler.set(pitch, yaw, roll, 'YXZ');
@@ -129,7 +137,7 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
         cx, cy, scale, yaw, pitch, roll, tasselAngle,
         skullHeight: capConfig.skullHeight,
         skullThick: capConfig.skullThick,
-        skullLong: capConfig.skullLong,
+        skullLong, // yaw-bent (see above); holds apparent size on a turn instead of the oval ballooning
         skullWall: capConfig.skullWall,
         headHide: capConfig.headHide,
         headScale: capConfig.headScale,
