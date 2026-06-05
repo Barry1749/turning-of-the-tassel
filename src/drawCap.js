@@ -24,8 +24,13 @@ const GOLD_DK = '#c9962f';
 // mirrored, so yaw + roll are sign-flipped here.
 export const capConfig = {
   width: 0.85, // cap size (multiplier on the head's rotation-invariant 3D size)
-  crownUp: 0.55, // how far above the head pivot the board sits
+  crownUp: 0.6, // how far above the head pivot the board sits
   crownBack: 0.3, // how far back toward the crown (profile)
+  edgePull: 0.1, // anti-drift: pull the cap back toward frame center by this fraction of its
+                  // off-center distance. The cap slides further OUT than your head at the
+                  // edges/corners (more left when you're on the left); this counters it. Linear, so
+                  // it's nil dead-center and grows toward the edges. 0 = off; raise if it still
+                  // drifts out, lower (or go negative) if it now sits too far in.
   skullHeight: 0.35, // height of the cylindrical crown (bigger = taller cap)
   skullThick: 1.0, // overall crown radius (width) multiplier — keep at 1.0 (this is NOT material thickness)
   skullLong: 1.3, // crown oval at FRONTAL view: stretch along nose↔back (a real head is longer front-to-back than ear-to-ear). The self-view bends this with head yaw (see skullLongYaw); name cards use it as-is.
@@ -127,8 +132,15 @@ export function drawScene(canvas, video, cap, tasselAngle, gesture) {
     // so the cap orbits onto the crown as the head turns (rides on the head, not the face).
     _euler.set(pitch, yaw, roll, 'YXZ');
     _off.set(0, capConfig.crownUp * scale, -capConfig.crownBack * scale).applyEuler(_euler);
-    const cx = (1 - cap.nx) * vw + _off.x; // mirror the pivot; offset already in screen space
-    const cy = cap.ny * vh - _off.y; // screen y is down, offset y is up
+    let cx = (1 - cap.nx) * vw + _off.x; // mirror the pivot; offset already in screen space
+    let cy = cap.ny * vh - _off.y; // screen y is down, offset y is up
+
+    // Anti-drift: the cap slides further OUT than your head at the edges/corners. Pull it back
+    // toward frame center by a fraction of its off-center distance (linear → nil at center, grows
+    // toward the edges). Tunable live: capConfig.edgePull. (|| 0 so a missing value can't NaN it.)
+    const pull = capConfig.edgePull || 0;
+    cx -= pull * (cx - vw / 2);
+    cy -= pull * (cy - vh / 2);
 
     const r = getSceneRenderer(vw, vh);
     if (r) {
