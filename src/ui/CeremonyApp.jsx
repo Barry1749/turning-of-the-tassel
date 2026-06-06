@@ -14,8 +14,9 @@ import Countdown from './Countdown';
 
 export default function CeremonyApp({ token, roomUrl, onLeave }) {
   // Identity is resolved by the server from our token (never the URL), so we read it back from
-  // the hook rather than from props. role/name are null until the server's welcome arrives.
-  const { connected, myId, myRole, myName, authError, cstate, participants, tasselRef, eventRef, eventTick, send, signalRef } = useCeremony({ token, enabled: !!token });
+  // the hook rather than from props. role/name are null until the server's welcome arrives. We
+  // always connect — a bare URL (no token) is the MC; the server decides who a token admits.
+  const { connected, myId, myRole, myName, authError, cstate, participants, tasselRef, eventRef, eventTick, send, signalRef } = useCeremony({ token });
   const role = myRole;
   const name = myName;
   const identified = !!role; // we know who we are → safe to start camera / join video
@@ -148,16 +149,17 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     manualTurn,
   }), [send, manualTurn, resetGesture, isProfessor]);
 
-  // No token, or the server rejected the one we sent: this is an invite-only ceremony.
-  if (!token || authError) {
+  // The server rejected our token (unknown or revoked). The bare URL is the MC and never lands
+  // here — this is only reached by a tampered or expired participant link.
+  if (authError) {
     return (
       <div className="join">
         <div className="join-card">
           <h1>🎓 Turning of the Tassel</h1>
-          <p className="sub">This ceremony is invite-only.</p>
+          <p className="sub">This invite link isn't valid.</p>
           <p className="note">
-            Open the app with the personal link the host sent you — each link is unique and can't
-            be edited or shared. Hosts: use the MC link printed in the server's startup log.
+            Ask the host (Master of Ceremony) for a new personal link — each one is unique to you
+            and can't be edited or shared.
           </p>
           <button type="button" className="primary" onClick={onLeave}>OK</button>
         </div>

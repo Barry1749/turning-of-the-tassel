@@ -6,12 +6,13 @@ import SoloDemo from './ui/SoloDemo';
 const params = new URLSearchParams(location.search);
 const roomUrl = (params.get('room') || import.meta.env.VITE_DAILY_ROOM_URL || '').trim();
 
-// Everyone enters through a per-person ?t=<token> link the Master of Ceremony shares from the
-// panel (the MC's own link is printed by the server at startup). The token — not editable URL
-// params — is what tells the server who you are, so role/name can't be changed by editing the URL.
-//   • ?t=<token> → that person (student / professor / guest / MC), resolved server-side
+// The bare app URL is the Master of Ceremony's console. Students, professors, and guests enter
+// through a per-person ?t=<token> link the MC shares from the panel — the token, not editable URL
+// params, tells the server who they are, so role/name can't be changed by editing the URL.
+//   • no token   → the MC console (the host just opens the app)
+//   • ?t=<token> → that student / professor / guest, resolved server-side
 //   • ?solo=1    → the no-room AR-cap demo
-//   • no token   → CeremonyApp connects, the server rejects it, and a locked "invite-only" screen shows
+// (An unknown / expired token is rejected with a locked screen, handled in CeremonyApp.)
 function initialSession() {
   if (params.get('solo')) return 'solo';
   return { token: (params.get('t') || '').trim() || null, roomUrl };

@@ -15,13 +15,12 @@ dotenv.config();
 const PORT = process.env.PORT || 3001;
 const REST_ANGLE = 1.05; // tassel resting on the right (must match the client)
 
-// Per-link access tokens: everyone enters through an opaque ?t=<token> link the MC shares.
-// The token — not editable URL params — is what tells the server who you are, so a participant
-// can't change their role or name by editing the URL. Tokens are random and live only in memory
-// (like the roster), so they reset when the server restarts.
+// Per-link access tokens: students, professors, and guests enter through an opaque ?t=<token>
+// link the MC shares. The token — not editable URL params — is what tells the server who you are,
+// so a participant can't change their role or name by editing the URL. Tokens are random and live
+// only in memory (like the roster), so they reset when the server restarts. The MC is NOT gated:
+// the bare app URL (no token) is the host console.
 const newToken = () => randomBytes(24).toString('base64url');
-// The MC's own console is gated too — a fresh token each startup, printed for the host on listen.
-const MC_TOKEN = newToken();
 
 // degree drives the tassel colour (bachelor | master | phd); the MC can change it per student.
 const SAMPLE_ROSTER = ['Mei-Ling Chen', 'Wei Kang', 'Sofia Rossi', 'Arjun Patel'].map((name) => ({
@@ -107,10 +106,10 @@ function stripTokens(s) {
 function stateFor(role) {
   return role === 'mc' || role === 'host' ? state : stripTokens(state);
 }
-// Map an access token to who it admits. No token / unknown token → null (not authorized).
+// Map an access token to who it admits. No token → the MC (host): the bare app URL is the host
+// console. A token names a specific guest / student / professor; an unknown token → null (rejected).
 function resolveToken(token) {
-  if (!token) return null;
-  if (token === MC_TOKEN) return { role: 'mc', name: 'Master of Ceremony' };
+  if (!token) return { role: 'mc', name: 'Master of Ceremony' };
   if (token === state.guestToken) return { role: 'guest', name: 'Guest' };
   const s = state.roster.find((x) => x.token === token);
   if (s) return { role: 'student', name: s.name };
@@ -408,7 +407,6 @@ wss.on('close', () => clearInterval(heartbeatTimer));
 
 server.listen(PORT, () => {
   console.log(`Ceremony server listening on http://localhost:${PORT}`);
-  // The host opens the app with this token to reach the MC console; it changes every restart.
-  console.log(`MC console link → add ?t=${MC_TOKEN} to the app URL`);
-  console.log(`  e.g. http://localhost:5173/?t=${MC_TOKEN}`);
+  // The MC console is the bare app URL (no token); participants join via the MC's per-person links.
+  console.log('MC console: open the app URL with no token (e.g. http://localhost:5173/).');
 });
