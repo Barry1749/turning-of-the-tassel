@@ -122,7 +122,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     next: () => send({ type: 'next' }),
     prev: () => send({ type: 'prev' }),
     select: (id) => send({ type: 'selectStudent', id }),
-    reorder: (id, dir) => send({ type: 'reorder', id, dir }),
+    reorderStudents: (ids) => send({ type: 'reorderStudents', ids }),
     addStudent: (s) => send({ type: 'addStudent', ...s }),
     addProfessor: (p) => send({ type: 'addProfessor', ...p }),
     setInfo: (info) => send({ type: 'setInfo', ...info }),

@@ -321,8 +321,10 @@ button.link {
   top: 56px;
   right: 12px;
   width: 290px;
-  max-height: calc(100vh - 70px);
-  overflow: auto;
+  bottom: 12px; /* top + bottom pin it to the screen height (no fixed px height) */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: rgba(12, 14, 32, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
@@ -331,6 +333,7 @@ button.link {
 }
 .mc.collapsed {
   width: auto;
+  bottom: auto; /* collapsed = just the header bar, not a full-height empty box */
 }
 .mc-head {
   display: flex;
@@ -339,15 +342,23 @@ button.link {
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  position: sticky;
-  top: 0;
   background: inherit;
+  flex: 0 0 auto; /* fixed header; the body below takes the rest and scrolls */
 }
 .mc-body {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-height: 0; /* let the body shrink so its overflow can scroll */
+  overflow-y: auto;
+}
+/* Each child keeps its own height; the body SCROLLS when they don't all fit,
+   instead of flexbox squeezing them (which crushed the Gallery/Ceremony switch
+   to a sliver when the roster got long). */
+.mc-body > * {
+  flex-shrink: 0;
 }
 .mc-seg {
   display: flex;
@@ -393,6 +404,31 @@ button.link {
   flex-direction: column;
   gap: 4px;
   counter-reset: r;
+  overflow-y: auto;
+  padding-right: 2px; /* keep the scrollbar off the row action buttons */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  min-height: 0;
+}
+/* The two rosters split the leftover space in a FIXED ratio (flex-basis:0 + grow), so their
+   heights stay put when you add/remove people — new entries just scroll inside. No px/vh,
+   so the whole panel (down to the guest count) still fits any screen, phones included.
+   Students get less of the space, professors more. Tune the grow numbers to taste. */
+.mc-roster-students {
+  flex: 5 1 0;
+}
+.mc-roster-profs {
+  flex: 4 1 0;
+}
+.mc-roster::-webkit-scrollbar {
+  width: 8px;
+}
+.mc-roster::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.mc-roster::-webkit-scrollbar-track {
+  background: transparent;
 }
 .mc-roster li {
   display: flex;
@@ -461,6 +497,28 @@ button.link {
   font-size: 0.8rem;
   border-radius: 6px;
 }
+/* Drag-to-reorder: grip handle + feedback for the dragged row and the drop target. */
+.mc-roster .r-drag {
+  cursor: grab;
+  padding: 2px 5px;
+  font-size: 0.85rem;
+  opacity: 0.5;
+  user-select: none;
+  line-height: 1;
+}
+.mc-roster .r-drag:hover {
+  opacity: 0.9;
+}
+.mc-roster .r-drag:active {
+  cursor: grabbing;
+}
+.mc-roster li.dragging {
+  opacity: 0.4;
+}
+.mc-roster li.drag-over {
+  outline: 1px dashed rgba(242, 193, 78, 0.85);
+  outline-offset: -1px;
+}
 .mc-in {
   width: 100%;
   background: rgba(0, 0, 0, 0.3);
@@ -469,11 +527,6 @@ button.link {
   padding: 7px 9px;
   border-radius: 8px;
   font-size: 0.9rem;
-}
-.mc-save {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
 }
 .mc-add {
   display: flex;

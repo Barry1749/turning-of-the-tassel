@@ -27,6 +27,8 @@ export default function MCPanel({
   const [uni, setUni] = useState(cstate.university || '');
   const [dept, setDept] = useState(cstate.department || '');
   const [copied, setCopied] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null); // student row being dragged
+  const [overIndex, setOverIndex] = useState(null); // row it's hovering over
 
   const roster = cstate.roster || [];
   const professors = cstate.professors || [];
@@ -42,6 +44,44 @@ export default function MCPanel({
     if (!newProf.trim()) return;
     actions.addProfessor({ name: newProf.trim() });
     setNewProf('');
+  };
+  // Auto-save the ceremony info when the MC finishes a field (blur / Enter); only push
+  // if it actually changed, so tabbing through unchanged fields doesn't spam the room.
+  const saveInfo = () => {
+    const university = uni.trim();
+    const department = dept.trim();
+    if (university !== (cstate.university || '') || department !== (cstate.department || '')) {
+      actions.setInfo({ university, department });
+    }
+  };
+
+  // Drag-to-reorder the student program: grab a row's handle, drop it on another row,
+  // and we send the whole new id order to the server.
+  const onRowDragStart = (e, i) => {
+    setDragIndex(i);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(i)); } catch { /* some browsers */ }
+  };
+  const onRowDragOver = (e, i) => {
+    if (dragIndex === null) return;
+    e.preventDefault(); // required so the drop is allowed
+    e.dataTransfer.dropEffect = 'move';
+    if (i !== overIndex) setOverIndex(i);
+  };
+  const onRowDrop = (e, i) => {
+    e.preventDefault();
+    const from = dragIndex;
+    setDragIndex(null);
+    setOverIndex(null);
+    if (from === null || from === i) return;
+    const ids = roster.map((s) => s.id);
+    const [moved] = ids.splice(from, 1);
+    ids.splice(i, 0, moved);
+    actions.reorderStudents(ids);
+  };
+  const onRowDragEnd = () => {
+    setDragIndex(null);
+    setOverIndex(null);
   };
 
   // Build a join link, carrying over the MC's own connection context (ws / room) so
@@ -91,11 +131,22 @@ export default function MCPanel({
           {canEditRoster && (
             <>
               <div className="mc-section">Ceremony</div>
-              <input className="mc-in" placeholder="University" value={uni} onChange={(e) => setUni(e.target.value)} />
-              <input className="mc-in" placeholder="Department" value={dept} onChange={(e) => setDept(e.target.value)} />
-              <button className="mc-save" onClick={() => actions.setInfo({ university: uni.trim(), department: dept.trim() })}>
-                Save ceremony info
-              </button>
+              <input
+                className="mc-in"
+                placeholder="University"
+                value={uni}
+                onChange={(e) => setUni(e.target.value)}
+                onBlur={saveInfo}
+                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              />
+              <input
+                className="mc-in"
+                placeholder="Department"
+                value={dept}
+                onChange={(e) => setDept(e.target.value)}
+                onBlur={saveInfo}
+                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              />
             </>
           )}
 
@@ -115,9 +166,18 @@ export default function MCPanel({
               <button className="mc-reset" onClick={actions.resetAll} title="Un-turn everyone and return to gallery">↺ reset all</button>
             )}
           </div>
-          <ol className="mc-roster">
-            {roster.map((s) => (
-              <li key={s.id} className={s.id === cstate.currentId ? 'cur' : ''}>
+          <ol className="mc-roster mc-roster-students">
+            {roster.map((s, i) => (
+              <li
+                key={s.id}
+                className={[
+                  s.id === cstate.currentId ? 'cur' : '',
+                  dragIndex === i ? 'dragging' : '',
+                  overIndex === i && dragIndex !== i ? 'drag-over' : '',
+                ].filter(Boolean).join(' ')}
+                onDragOver={canEditRoster ? (e) => onRowDragOver(e, i) : undefined}
+                onDrop={canEditRoster ? (e) => onRowDrop(e, i) : undefined}
+              >
                 <span className="r-name" onClick={() => actions.select(s.id)} title="Spotlight this student">
                   <span className="r-dot" style={{ background: tasselColorFor(s.degree) }} title={`${s.degree || 'bachelor'} tassel`} />
                   {s.name} {s.turned ? <em>✓</em> : ''}
@@ -136,11 +196,19 @@ export default function MCPanel({
                 )}
                 {canEditRoster && (
                   <span className="r-actions">
+                    <span
+                      className="r-drag"
+                      draggable
+                      onDragStart={(e) => onRowDragStart(e, i)}
+                      onDragEnd={onRowDragEnd}
+                      title="Drag to reorder"
+                      aria-label="Drag to reorder"
+                    >
+                      ⠿
+                    </span>
                     <button onClick={() => copyLink(s.id, joinLink(s.name, 'student'))} title="Copy this student's personal join link">
                       {copied === s.id ? '✓' : '🔗'}
                     </button>
-                    <button onClick={() => actions.reorder(s.id, 'up')} title="Move up">↑</button>
-                    <button onClick={() => actions.reorder(s.id, 'down')} title="Move down">↓</button>
                     <button onClick={() => actions.removeStudent(s.id)} title="Remove">✕</button>
                   </span>
                 )}
@@ -174,7 +242,7 @@ export default function MCPanel({
           {canEditRoster && (
             <>
               <div className="mc-section">Professors</div>
-              <ol className="mc-roster">
+              <ol className="mc-roster mc-roster-profs">
                 {professors.length === 0 && <li className="r-empty">No professors yet</li>}
                 {professors.map((p) => (
                   <li key={p.id}>

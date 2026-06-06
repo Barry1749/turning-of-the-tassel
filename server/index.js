@@ -223,6 +223,18 @@ wss.on('connection', (ws) => {
         }
         break;
       }
+      // Drag-to-reorder: the MC sends the full new order of student ids. Reorder the
+      // roster to match; any student not listed (e.g. one who joined mid-drag) is kept
+      // at the end so nobody is dropped.
+      case 'reorderStudents': {
+        if (!isHost(me) || !Array.isArray(msg.ids)) break;
+        const byId = new Map(state.roster.map((s) => [s.id, s]));
+        const ordered = msg.ids.map((id) => byId.get(id)).filter(Boolean);
+        const missing = state.roster.filter((s) => !msg.ids.includes(s.id));
+        state.roster = [...ordered, ...missing];
+        broadcastState();
+        break;
+      }
       case 'addStudent':
         if (!isHost(me)) break;
         state.roster.push({ id: randomUUID(), name: msg.name || 'New Student', turned: false, degree: msg.degree || 'bachelor' });
