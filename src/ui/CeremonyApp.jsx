@@ -12,12 +12,17 @@ import MCPanel from './MCPanel';
 import MediaControls from './MediaControls';
 import Countdown from './Countdown';
 
-export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
+export default function CeremonyApp({ token, roomUrl, onLeave }) {
+  // Identity is resolved by the server from our token (never the URL), so we read it back from
+  // the hook rather than from props. role/name are null until the server's welcome arrives.
+  const { connected, myId, myRole, myName, authError, cstate, participants, tasselRef, eventRef, eventTick, send, signalRef } = useCeremony({ token, enabled: !!token });
+  const role = myRole;
+  const name = myName;
+  const identified = !!role; // we know who we are → safe to start camera / join video
+
   const isProfessor = role === 'professor' || role === 'host'; // performs the gesture (camera)
   const canEditRoster = role === 'mc' || role === 'host'; // edits the program order
   const isController = role === 'mc' || role === 'professor' || role === 'host';
-
-  const { connected, myId, cstate, participants, tasselRef, eventRef, eventTick, send, signalRef } = useCeremony({ role, name });
 
   const [gestureOn, setGestureOn] = useState(true);
   const [banner, setBanner] = useState(null);
@@ -29,7 +34,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
   // My own degree drives my self-view tassel colour. Find my roster entry by name and push it
   // into the cap renderer; it re-applies live whenever the MC changes my degree.
   const myDegree = useMemo(
-    () => roster.find((s) => s.name.toLowerCase() === name.toLowerCase())?.degree || 'bachelor',
+    () => (name ? roster.find((s) => s.name.toLowerCase() === name.toLowerCase())?.degree : null) || 'bachelor',
     [roster, name],
   );
   useEffect(() => {
@@ -71,9 +76,10 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
 
   // Publish the un-mirrored composite so remote peers see the real image; our own tile keeps
   // the mirrored `selfStream` (passed to Gallery/Spotlight below).
-  const lk = useLiveKit({ enabled: liveKitEnabled, url: liveKitUrl, identity: myId, name, selfStream: publishStream });
-  const daily = useDaily({ roomUrl: dailyEnabled ? roomUrl : '', name, selfStream: publishStream });
-  const p2p = useP2P({ enabled: p2pEnabled, myId, myRole: role, participants, selfStream: publishStream, send, signalRef });
+  // Hold off connecting any transport until the server has told us who we are.
+  const lk = useLiveKit({ enabled: liveKitEnabled && identified, url: liveKitUrl, identity: myId, name, selfStream: publishStream });
+  const daily = useDaily({ roomUrl: dailyEnabled && identified ? roomUrl : '', name, selfStream: publishStream });
+  const p2p = useP2P({ enabled: p2pEnabled && identified, myId, myRole: role, participants, selfStream: publishStream, send, signalRef });
 
   const video = liveKitEnabled ? lk : dailyEnabled ? daily : p2p;
   const remote = video.remote;
@@ -142,8 +148,24 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     manualTurn,
   }), [send, manualTurn, resetGesture, isProfessor]);
 
-  if (!cstate) {
-    return <div className="center-msg">{connected ? 'Loading ceremony…' : 'Connecting to ceremony server…'}</div>;
+  // No token, or the server rejected the one we sent: this is an invite-only ceremony.
+  if (!token || authError) {
+    return (
+      <div className="join">
+        <div className="join-card">
+          <h1>🎓 Turning of the Tassel</h1>
+          <p className="sub">This ceremony is invite-only.</p>
+          <p className="note">
+            Open the app with the personal link the host sent you — each link is unique and can't
+            be edited or shared. Hosts: use the MC link printed in the server's startup log.
+          </p>
+          <button type="button" className="primary" onClick={onLeave}>OK</button>
+        </div>
+      </div>
+    );
+  }
+  if (!cstate || !identified) {
+    return <div className="center-msg">{connected ? 'Joining…' : 'Connecting to ceremony server…'}</div>;
   }
 
   const roleLabel = role === 'host' ? 'professor + mc' : role;

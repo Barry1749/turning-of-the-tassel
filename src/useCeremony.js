@@ -2,6 +2,10 @@
 // mirrors the authoritative ceremony state, exposes a send() for commands, and keeps
 // the high-frequency tassel stream in a ref (so canvases can read it every frame
 // without triggering React re-renders).
+//
+// Identity comes from the server, not the URL: we send our access token on connect and the
+// server replies with the role + name it resolves the token to (or `unauthorized`). So the
+// client can't pick its own role/name — editing the link just yields an unknown token.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { REST_ANGLE } from './tassel';
 
@@ -16,9 +20,12 @@ const WS_URL = (() => {
   return `${proto}//${location.host}/ws`;
 })();
 
-export function useCeremony({ role, name, enabled = true }) {
+export function useCeremony({ token, enabled = true }) {
   const [connected, setConnected] = useState(false);
   const [myId, setMyId] = useState(null);
+  const [myRole, setMyRole] = useState(null); // resolved from the token by the server
+  const [myName, setMyName] = useState(null);
+  const [authError, setAuthError] = useState(false); // token missing / unknown → locked out
   const [cstate, setCstate] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [eventTick, setEventTick] = useState(0);
@@ -39,7 +46,7 @@ export function useCeremony({ role, name, enabled = true }) {
 
       ws.onopen = () => {
         setConnected(true);
-        ws.send(JSON.stringify({ type: 'hello', role, name }));
+        ws.send(JSON.stringify({ type: 'hello', token }));
       };
       ws.onmessage = (e) => {
         let msg;
@@ -50,8 +57,16 @@ export function useCeremony({ role, name, enabled = true }) {
         }
         if (msg.type === 'welcome') {
           setMyId(msg.id);
+          // The post-hello welcome carries our resolved identity; the initial one doesn't.
+          if (msg.role) {
+            setMyRole(msg.role);
+            setAuthError(false);
+          }
+          if (msg.name) setMyName(msg.name);
           setCstate(msg.state);
           tasselRef.current = { ...msg.state.tassel, studentId: msg.state.currentId };
+        } else if (msg.type === 'unauthorized') {
+          setAuthError(true);
         } else if (msg.type === 'state') {
           setCstate(msg.state);
           tasselRef.current = { ...msg.state.tassel, studentId: msg.state.currentId };
@@ -79,12 +94,12 @@ export function useCeremony({ role, name, enabled = true }) {
       clearTimeout(retry);
       wsRef.current?.close();
     };
-  }, [enabled, role, name]);
+  }, [enabled, token]);
 
   const send = useCallback((obj) => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
   }, []);
 
-  return { connected, myId, cstate, participants, tasselRef, eventRef, eventTick, send, signalRef };
+  return { connected, myId, myRole, myName, authError, cstate, participants, tasselRef, eventRef, eventTick, send, signalRef };
 }

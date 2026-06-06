@@ -4,7 +4,7 @@
 // over WebSocket. Daily handles the actual video; this server is pure control + sync.
 
 import http from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
 import { AccessToken } from 'livekit-server-sdk';
@@ -15,12 +15,21 @@ dotenv.config();
 const PORT = process.env.PORT || 3001;
 const REST_ANGLE = 1.05; // tassel resting on the right (must match the client)
 
+// Per-link access tokens: everyone enters through an opaque ?t=<token> link the MC shares.
+// The token — not editable URL params — is what tells the server who you are, so a participant
+// can't change their role or name by editing the URL. Tokens are random and live only in memory
+// (like the roster), so they reset when the server restarts.
+const newToken = () => randomBytes(24).toString('base64url');
+// The MC's own console is gated too — a fresh token each startup, printed for the host on listen.
+const MC_TOKEN = newToken();
+
 // degree drives the tassel colour (bachelor | master | phd); the MC can change it per student.
 const SAMPLE_ROSTER = ['Mei-Ling Chen', 'Wei Kang', 'Sofia Rossi', 'Arjun Patel'].map((name) => ({
   id: randomUUID(),
   name,
   turned: false,
   degree: 'bachelor',
+  token: newToken(),
 }));
 
 const state = {
@@ -32,6 +41,7 @@ const state = {
   countdown: null,
   university: '', // set by the MC at the start of the ceremony
   department: '',
+  guestToken: newToken(), // one shared watch-only link for guests
 };
 
 const clients = new Map(); // ws -> { id, role, name }
@@ -64,8 +74,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (req.url === '/state') {
+    // Debug view — strip tokens so they can't be scraped over plain HTTP.
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ state, participants: participantList() }));
+    res.end(JSON.stringify({ state: stripTokens(state), participants: participantList() }));
     return;
   }
   res.writeHead(200, { 'content-type': 'text/plain' });
@@ -81,6 +92,33 @@ function participantList() {
     .filter((m) => m.role !== 'pending')
     .map(({ id, role, name }) => ({ id, role, name }));
 }
+
+// Tokens identify people to the server but must never leak to other participants (a student
+// must not learn the professor's token and impersonate them). Strip every token from a state copy.
+function stripTokens(s) {
+  return {
+    ...s,
+    roster: s.roster.map(({ token, ...rest }) => rest),
+    professors: s.professors.map(({ token, ...rest }) => rest),
+    guestToken: undefined,
+  };
+}
+// Only the MC / host generate the join links, so only they receive the token-bearing state.
+function stateFor(role) {
+  return role === 'mc' || role === 'host' ? state : stripTokens(state);
+}
+// Map an access token to who it admits. No token / unknown token → null (not authorized).
+function resolveToken(token) {
+  if (!token) return null;
+  if (token === MC_TOKEN) return { role: 'mc', name: 'Master of Ceremony' };
+  if (token === state.guestToken) return { role: 'guest', name: 'Guest' };
+  const s = state.roster.find((x) => x.token === token);
+  if (s) return { role: 'student', name: s.name };
+  const p = state.professors.find((x) => x.token === token);
+  if (p) return { role: 'professor', name: p.name };
+  return null;
+}
+
 // Heartbeat marker: the client's pong (browsers auto-reply) proves it's still there.
 function heartbeat() {
   this.isAlive = true;
@@ -93,7 +131,8 @@ function broadcast(obj) {
   for (const ws of clients.keys()) if (ws.readyState === ws.OPEN) ws.send(msg);
 }
 function broadcastState() {
-  broadcast({ type: 'state', state });
+  // Per client, because the token-bearing state goes only to the MC / host (see stateFor).
+  for (const [ws, m] of clients) send(ws, { type: 'state', state: stateFor(m.role) });
 }
 function broadcastParticipants() {
   broadcast({ type: 'participants', participants: participantList() });
@@ -144,7 +183,7 @@ wss.on('connection', (ws) => {
   // 'pending' until the client's hello says who it is — so it isn't counted yet.
   const meta = { id: randomUUID(), role: 'pending', name: 'Guest' };
   clients.set(ws, meta);
-  send(ws, { type: 'welcome', id: meta.id, state });
+  send(ws, { type: 'welcome', id: meta.id, state: stateFor(meta.role) });
   broadcastParticipants();
 
   ws.on('message', (raw) => {
@@ -159,25 +198,17 @@ wss.on('connection', (ws) => {
 
     switch (msg.type) {
       case 'hello': {
-        me.role = msg.role || 'guest';
-        me.name = msg.name || me.name;
-        // auto-add a joining student to the program so they can be spotlighted/turned
-        if (
-          me.role === 'student' &&
-          me.name &&
-          !state.roster.some((s) => s.name.toLowerCase() === me.name.toLowerCase())
-        ) {
-          state.roster.push({ id: randomUUID(), name: me.name, turned: false, degree: 'bachelor' });
+        // The token says who you are; an unknown / missing token is not authorized (the client
+        // then shows a locked screen). No more auto-adding people by name — the MC creates each
+        // person up front, which is what mints their personal link.
+        const who = resolveToken(msg.token);
+        if (!who) {
+          send(ws, { type: 'unauthorized' });
+          break; // stays 'pending', so it is never counted as a participant
         }
-        // auto-add a joining professor to the MC's list (so they can be tracked / re-invited)
-        if (
-          me.role === 'professor' &&
-          me.name &&
-          !state.professors.some((p) => p.name.toLowerCase() === me.name.toLowerCase())
-        ) {
-          state.professors.push({ id: randomUUID(), name: me.name });
-        }
-        send(ws, { type: 'welcome', id: me.id, state });
+        me.role = who.role;
+        me.name = who.name;
+        send(ws, { type: 'welcome', id: me.id, role: me.role, name: me.name, state: stateFor(me.role) });
         broadcastParticipants();
         broadcastState();
         break;
@@ -237,7 +268,7 @@ wss.on('connection', (ws) => {
       }
       case 'addStudent':
         if (!isHost(me)) break;
-        state.roster.push({ id: randomUUID(), name: msg.name || 'New Student', turned: false, degree: msg.degree || 'bachelor' });
+        state.roster.push({ id: randomUUID(), name: msg.name || 'New Student', turned: false, degree: msg.degree || 'bachelor', token: newToken() });
         broadcastState();
         break;
 
@@ -262,7 +293,7 @@ wss.on('connection', (ws) => {
       }
       case 'addProfessor':
         if (!isHost(me)) break;
-        state.professors.push({ id: randomUUID(), name: msg.name || 'New Professor' });
+        state.professors.push({ id: randomUUID(), name: msg.name || 'New Professor', token: newToken() });
         broadcastState();
         break;
       case 'removeProfessor':
@@ -283,7 +314,7 @@ wss.on('connection', (ws) => {
           if (!name || haveStudent.has(key)) continue;
           haveStudent.add(key);
           const degree = validDegrees.has(s?.degree) ? s.degree : 'bachelor';
-          state.roster.push({ id: randomUUID(), name, turned: false, degree });
+          state.roster.push({ id: randomUUID(), name, turned: false, degree, token: newToken() });
         }
         const haveProf = new Set(state.professors.map((p) => p.name.trim().toLowerCase()));
         for (const p of Array.isArray(msg.professors) ? msg.professors : []) {
@@ -291,7 +322,7 @@ wss.on('connection', (ws) => {
           const key = name.toLowerCase();
           if (!name || haveProf.has(key)) continue;
           haveProf.add(key);
-          state.professors.push({ id: randomUUID(), name });
+          state.professors.push({ id: randomUUID(), name, token: newToken() });
         }
         broadcastState();
         break;
@@ -377,4 +408,7 @@ wss.on('close', () => clearInterval(heartbeatTimer));
 
 server.listen(PORT, () => {
   console.log(`Ceremony server listening on http://localhost:${PORT}`);
+  // The host opens the app with this token to reach the MC console; it changes every restart.
+  console.log(`MC console link → add ?t=${MC_TOKEN} to the app URL`);
+  console.log(`  e.g. http://localhost:5173/?t=${MC_TOKEN}`);
 });

@@ -6,22 +6,15 @@ import SoloDemo from './ui/SoloDemo';
 const params = new URLSearchParams(location.search);
 const roomUrl = (params.get('room') || import.meta.env.VITE_DAILY_ROOM_URL || '').trim();
 
-// Resolve who is opening the app straight from the URL:
-//   • a personal link (?autojoin=1&name=…&role=…) → that named student / professor
-//   • the shared guest link (?role=guest&autojoin=1) → an anonymous watch-only guest
-//   • ?solo=1 → the no-room AR-cap demo
-//   • the bare app URL → the Master of Ceremony, dropped straight into the control panel
-// Everyone but the MC arrives through a link the MC shares from the panel, so the bare URL
-// is the MC's own entry point and never shows a role picker.
+// Everyone enters through a per-person ?t=<token> link the Master of Ceremony shares from the
+// panel (the MC's own link is printed by the server at startup). The token — not editable URL
+// params — is what tells the server who you are, so role/name can't be changed by editing the URL.
+//   • ?t=<token> → that person (student / professor / guest / MC), resolved server-side
+//   • ?solo=1    → the no-room AR-cap demo
+//   • no token   → CeremonyApp connects, the server rejects it, and a locked "invite-only" screen shows
 function initialSession() {
   if (params.get('solo')) return 'solo';
-  const role = params.get('role');
-  const name = (params.get('name') || '').trim();
-  // Student/professor links carry a name; the guest link is shared and nameless.
-  if (params.get('autojoin') && (name || role === 'guest')) {
-    return { name: name || 'Guest', role: role || 'student', roomUrl };
-  }
-  return { name: name || 'Master of Ceremony', role: 'mc', roomUrl };
+  return { token: (params.get('t') || '').trim() || null, roomUrl };
 }
 
 export default function App() {

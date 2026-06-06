@@ -184,10 +184,11 @@ export default function MCPanel({
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     return `${location.origin}${location.pathname}?${p.toString()}`;
   };
-  // Personal join link for a roster person — opens already named and auto-joins in their role.
-  const joinLink = (pname, jrole) => makeLink({ role: jrole, name: pname, autojoin: '1' });
-  // One shared watch-only link for guests — anonymous, so it carries no name (they're counted, not listed).
-  const guestLink = () => makeLink({ role: 'guest', autojoin: '1' });
+  // Personal join link for a roster person — their token is what admits them (and pins their
+  // role + name). Editing the link just makes the token unknown, so it can't be tampered with.
+  const joinLink = (tok) => makeLink({ t: tok });
+  // One shared watch-only link for guests — its own token, anonymous (guests are counted, not listed).
+  const guestLink = () => makeLink({ t: cstate.guestToken });
   const copyLink = async (id, link) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -241,8 +242,8 @@ export default function MCPanel({
   // guest link as the last row. Reuses the exact links the per-row 🔗 buttons copy.
   const downloadCsv = () => {
     const rows = [['name', 'role', 'link']];
-    for (const s of roster) rows.push([s.name, s.degree || 'bachelor', joinLink(s.name, 'student')]);
-    for (const p of professors) rows.push([p.name, 'professor', joinLink(p.name, 'professor')]);
+    for (const s of roster) rows.push([s.name, s.degree || 'bachelor', joinLink(s.token)]);
+    for (const p of professors) rows.push([p.name, 'professor', joinLink(p.token)]);
     rows.push(['Guest', 'guest', guestLink()]);
     const base = (cstate.university || cstate.department || 'ceremony')
       .trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'ceremony';
@@ -355,7 +356,7 @@ export default function MCPanel({
                     >
                       ⠿
                     </span>
-                    <button onClick={() => copyLink(s.id, joinLink(s.name, 'student'))} title="Copy this student's personal join link">
+                    <button onClick={() => copyLink(s.id, joinLink(s.token))} title="Copy this student's personal join link">
                       {copied === s.id ? '✓' : '🔗'}
                     </button>
                     <button onClick={() => actions.removeStudent(s.id)} title="Remove">✕</button>
@@ -397,7 +398,7 @@ export default function MCPanel({
                   <li key={p.id}>
                     <span className="r-name r-static">🎓 {p.name}</span>
                     <span className="r-actions">
-                      <button onClick={() => copyLink(p.id, joinLink(p.name, 'professor'))} title="Copy this professor's personal join link">
+                      <button onClick={() => copyLink(p.id, joinLink(p.token))} title="Copy this professor's personal join link">
                         {copied === p.id ? '✓' : '🔗'}
                       </button>
                       <button onClick={() => actions.removeProfessor(p.id)} title="Remove">✕</button>
