@@ -1,6 +1,8 @@
-// Starts a Cloudflare quick tunnel for the web app and prints the share link for remote
-// users. The ceremony server is reached through the SAME tunnel at /ws (Vite proxies it),
-// so one tunnel is all you need.
+// Starts a Cloudflare quick tunnel for the web app and prints the host (Master of Ceremony)
+// console link. The ceremony server is reached through the SAME tunnel at /ws (Vite proxies it),
+// so one tunnel is all you need. The host opens the bare link to run the ceremony; participants
+// each get their own ?t=… link from the MC panel — do NOT share the bare link, since anyone who
+// opens it becomes the host.
 //
 // Usage: keep `npm run dev:all` running in one terminal, then run `npm run share` in
 // another. Requires cloudflared (winget install --id Cloudflare.cloudflared).
@@ -17,8 +19,12 @@ const onData = (buf) => {
   if (m && !printed) {
     printed = true;
     console.log('\n============================================================');
-    console.log(' Tunnel is up. SHARE THIS LINK with remote users:\n');
+    console.log(' Tunnel is up. This is the HOST (Master of Ceremony) console:\n');
     console.log('   ' + m[0] + '\n');
+    console.log(' Open it yourself to run the ceremony. Do NOT share this bare');
+    console.log(' link — anyone who opens it becomes the host. To invite people,');
+    console.log(' use the per-person link buttons in the MC panel to copy each');
+    console.log(' guest / student / professor their own ?t=… link.\n');
     console.log(' Keep this window AND your `npm run dev:all` window open.');
     console.log(' (The link changes each time you restart this.)');
     console.log('============================================================\n');
