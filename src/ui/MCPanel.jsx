@@ -146,32 +146,86 @@ export default function MCPanel({
   };
 
   // Drag-to-reorder the student program: grab a row's handle, drop it on another row,
-  // and we send the whole new id order to the server.
-  const onRowDragStart = (e, i) => {
+  // and we send the whole new id order to the server. We use pointer events rather than the
+  // HTML5 drag API because native drag-and-drop never fires from touch — so on a phone the
+  // handle did nothing. Pointer events fire the same for mouse, finger, and pen.
+  //
+  // The live from/over indices (and the last pointer position) are kept in a ref — the source
+  // of truth for the drop and the auto-scroll loop — so they're correct even if React hasn't
+  // flushed the last move's state update; dragIndex/overIndex state only paints the highlights.
+  const dragRef = useRef({ from: null, over: null, x: 0, y: 0 });
+  const scrollRef = useRef(null); // the scrollable <ol> of students
+  const autoScrollRef = useRef(0); // rAF id while edge-scrolling, 0 when idle
+
+  // Find the row under (x, y) and make it the drop target. Run on every move and after each
+  // auto-scroll step, since scrolling slides a new row under a stationary finger.
+  const hitTestRow = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const li = el && el.closest('li[data-row-index]');
+    if (!li) return;
+    const i = Number(li.dataset.rowIndex);
+    if (!Number.isNaN(i) && i !== dragRef.current.over) {
+      dragRef.current.over = i;
+      setOverIndex(i);
+    }
+  };
+
+  // While the finger sits near the top/bottom edge of the list, scroll it so rows that are
+  // off-screen can still be reached — otherwise you can't drag to the very front or back of a
+  // list that doesn't fully fit. The captured drag suppresses the browser's own scrolling, so
+  // we drive it here, re-running the hit-test each frame as the content moves under the finger.
+  const autoScroll = () => {
+    const sc = scrollRef.current;
+    if (dragRef.current.from === null || !sc) { autoScrollRef.current = 0; return; }
+    const r = sc.getBoundingClientRect();
+    const EDGE = 36; // px edge band that triggers scrolling
+    const MAX = 12; // px per frame at the very edge
+    const y = dragRef.current.y;
+    let v = 0;
+    if (y < r.top + EDGE) v = -Math.ceil(((r.top + EDGE - y) / EDGE) * MAX);
+    else if (y > r.bottom - EDGE) v = Math.ceil(((y - (r.bottom - EDGE)) / EDGE) * MAX);
+    const before = sc.scrollTop;
+    if (v) sc.scrollTop += v;
+    if (sc.scrollTop !== before) {
+      hitTestRow(dragRef.current.x, dragRef.current.y);
+      autoScrollRef.current = requestAnimationFrame(autoScroll);
+    } else {
+      autoScrollRef.current = 0; // out of the band, or already at an end — stop
+    }
+  };
+
+  const onRowPointerDown = (e, i) => {
+    if (!e.isPrimary || e.button > 0) return; // ignore extra fingers / right-click
+    dragRef.current = { from: i, over: i, x: e.clientX, y: e.clientY };
     setDragIndex(i);
-    e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', String(i)); } catch { /* some browsers */ }
+    setOverIndex(i);
+    // Route every later move/up to the handle even as the finger slides onto other rows.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* unsupported */ }
   };
-  const onRowDragOver = (e, i) => {
-    if (dragIndex === null) return;
-    e.preventDefault(); // required so the drop is allowed
-    e.dataTransfer.dropEffect = 'move';
-    if (i !== overIndex) setOverIndex(i);
+  const onRowPointerMove = (e) => {
+    if (dragRef.current.from === null) return;
+    dragRef.current.x = e.clientX;
+    dragRef.current.y = e.clientY;
+    // Capture keeps the events on the handle, so the event target is useless for telling which
+    // row we're over — ask the document what's actually under the pointer instead.
+    hitTestRow(e.clientX, e.clientY);
+    if (!autoScrollRef.current) autoScroll(); // start edge-scrolling if we're in the band
   };
-  const onRowDrop = (e, i) => {
-    e.preventDefault();
-    const from = dragIndex;
+  const endDrag = () => {
+    cancelAnimationFrame(autoScrollRef.current);
+    autoScrollRef.current = 0;
+    dragRef.current = { from: null, over: null, x: 0, y: 0 };
     setDragIndex(null);
     setOverIndex(null);
-    if (from === null || from === i) return;
+  };
+  const onRowPointerUp = () => {
+    const { from, over } = dragRef.current;
+    endDrag();
+    if (from === null || over === null || from === over) return;
     const ids = roster.map((s) => s.id);
     const [moved] = ids.splice(from, 1);
-    ids.splice(i, 0, moved);
+    ids.splice(over, 0, moved);
     actions.reorderStudents(ids);
-  };
-  const onRowDragEnd = () => {
-    setDragIndex(null);
-    setOverIndex(null);
   };
 
   // Build a join link, carrying over the MC's own connection context (ws / room) so
@@ -316,19 +370,19 @@ export default function MCPanel({
               <button className="mc-reset" onClick={actions.resetAll} title="Un-turn everyone and return to gallery">↺ reset all</button>
             )}
           </div>
-          <ol className="mc-roster mc-roster-students">
+          <ol className="mc-roster mc-roster-students" ref={scrollRef}>
             {roster.map((s, i) => (
               <li
                 key={s.id}
+                data-row-index={i}
                 className={[
                   s.id === cstate.currentId ? 'cur' : '',
                   dragIndex === i ? 'dragging' : '',
                   overIndex === i && dragIndex !== i ? 'drag-over' : '',
                 ].filter(Boolean).join(' ')}
-                onDragOver={canEditRoster ? (e) => onRowDragOver(e, i) : undefined}
-                onDrop={canEditRoster ? (e) => onRowDrop(e, i) : undefined}
               >
                 <span className="r-name" onClick={() => actions.select(s.id)} title="Spotlight this student">
+                  <span className="r-seq">{i + 1}</span>
                   <span className="r-dot" style={{ background: tasselColorFor(s.degree) }} title={`${s.degree || 'bachelor'} tassel`} />
                   {s.name} {s.turned ? <em>✓</em> : ''}
                 </span>
@@ -348,9 +402,10 @@ export default function MCPanel({
                   <span className="r-actions">
                     <span
                       className="r-drag"
-                      draggable
-                      onDragStart={(e) => onRowDragStart(e, i)}
-                      onDragEnd={onRowDragEnd}
+                      onPointerDown={(e) => onRowPointerDown(e, i)}
+                      onPointerMove={onRowPointerMove}
+                      onPointerUp={onRowPointerUp}
+                      onPointerCancel={endDrag}
                       title="Drag to reorder"
                       aria-label="Drag to reorder"
                     >
