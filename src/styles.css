@@ -574,6 +574,20 @@ button.link {
 .mc-degree-new option {
   color: #000; /* native dropdown list renders on a light background */
 }
+/* CSV import / export — bulk roster tools */
+.mc-csv {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mc-csv button {
+  flex: 1 1 90px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
 .mc-check {
   display: flex;
   align-items: center;

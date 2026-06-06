@@ -270,6 +270,32 @@ wss.on('connection', (ws) => {
         state.professors = state.professors.filter((p) => p.id !== msg.id);
         broadcastState();
         break;
+      // Bulk import from the MC's CSV: one atomic message instead of N add* messages
+      // (a 200-person roster is a single broadcast, not 200). Names already present are
+      // skipped (case-insensitive), so re-importing the same file is safe.
+      case 'importRoster': {
+        if (!isHost(me)) break;
+        const validDegrees = new Set(['bachelor', 'master', 'phd']);
+        const haveStudent = new Set(state.roster.map((s) => s.name.trim().toLowerCase()));
+        for (const s of Array.isArray(msg.students) ? msg.students : []) {
+          const name = String(s?.name || '').trim();
+          const key = name.toLowerCase();
+          if (!name || haveStudent.has(key)) continue;
+          haveStudent.add(key);
+          const degree = validDegrees.has(s?.degree) ? s.degree : 'bachelor';
+          state.roster.push({ id: randomUUID(), name, turned: false, degree });
+        }
+        const haveProf = new Set(state.professors.map((p) => p.name.trim().toLowerCase()));
+        for (const p of Array.isArray(msg.professors) ? msg.professors : []) {
+          const name = String(p?.name || '').trim();
+          const key = name.toLowerCase();
+          if (!name || haveProf.has(key)) continue;
+          haveProf.add(key);
+          state.professors.push({ id: randomUUID(), name });
+        }
+        broadcastState();
+        break;
+      }
       case 'startCountdown':
         if (!isHost(me)) break;
         startCountdown(Math.max(1, msg.n || 3));

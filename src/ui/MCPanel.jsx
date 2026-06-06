@@ -1,5 +1,93 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { DEGREE_TASSELS, tasselColorFor } from '../drawCap';
+
+// ---------------------------------------------------------------------------
+// CSV roster import / export.
+//   Import: column 1 = name, column 2 = role (bachelor | master | phd | professor).
+//   Export: those two columns + a personal join link per person, with the one shared
+//   guest link as the last row. A leading header row is auto-skipped, and a few common
+//   spellings of each role map onto our four kinds so the MC's spreadsheet needn't match
+//   exactly. Students carry a degree (→ tassel colour); professors are a separate list.
+// ---------------------------------------------------------------------------
+const ROLE_ALIASES = {
+  bachelor: 'bachelor', bachelors: 'bachelor', ba: 'bachelor', bs: 'bachelor', bsc: 'bachelor',
+  undergraduate: 'bachelor', undergrad: 'bachelor',
+  master: 'master', masters: 'master', ma: 'master', ms: 'master', msc: 'master', meng: 'master',
+  phd: 'phd', 'ph.d': 'phd', 'ph.d.': 'phd', doctor: 'phd', doctoral: 'phd', doctorate: 'phd', dphil: 'phd',
+  professor: 'professor', prof: 'professor', faculty: 'professor',
+};
+function normalizeRole(raw) {
+  const k = String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return ROLE_ALIASES[k] || null;
+}
+
+// Minimal RFC-4180-ish parser: handles quoted fields, embedded commas / quotes / newlines,
+// CRLF or LF line endings, and a leading UTF-8 BOM (Excel). Returns an array of string rows.
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+  const s = String(text || '').replace(/^\uFEFF/, '');
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s[i];
+    if (quoted) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { field += '"'; i += 1; } else quoted = false;
+      } else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && s[i + 1] === '\n') i += 1;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((cell) => cell.trim() !== ''));
+}
+
+// Turn parsed rows into { students: [{name, degree}], professors: [{name}], skipped }.
+const HEADER_ROLE_WORDS = new Set(['role', 'degree', 'type', 'kind']);
+function rowsToImport(rows) {
+  if (!rows.length) return { students: [], professors: [], skipped: 0 };
+  const first = rows[0];
+  const looksHeader =
+    (first[0] || '').trim().toLowerCase() === 'name' ||
+    HEADER_ROLE_WORDS.has((first[1] || '').trim().toLowerCase());
+  const data = looksHeader ? rows.slice(1) : rows;
+  const students = [];
+  const professors = [];
+  let skipped = 0;
+  for (const r of data) {
+    const name = (r[0] || '').trim();
+    const role = normalizeRole(r[1]);
+    if (!name) { skipped += 1; continue; }
+    if (role === 'professor') professors.push({ name });
+    else if (role) students.push({ name, degree: role });
+    else skipped += 1;
+  }
+  return { students, professors, skipped };
+}
+
+// Drop names already present (in `have`) or repeated within the list (case-insensitive).
+function dedupeByName(list, have) {
+  const seen = new Set();
+  return list.filter((item) => {
+    const k = item.name.trim().toLowerCase();
+    if (have.has(k) || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// CSV writer: quote a cell only when it contains a comma, quote or newline.
+function csvCell(v) {
+  const s = String(v ?? '');
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function toCsv(rows) {
+  return rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+}
 
 // Control panel for any controller (MC / professor / host).
 //   - canEditRoster (MC / host): ceremony info, program order, add/remove students &
@@ -29,6 +117,8 @@ export default function MCPanel({
   const [copied, setCopied] = useState(null);
   const [dragIndex, setDragIndex] = useState(null); // student row being dragged
   const [overIndex, setOverIndex] = useState(null); // row it's hovering over
+  const fileRef = useRef(null); // hidden CSV file input, opened by the Import button
+  const [csvNote, setCsvNote] = useState(null); // one-line result summary after an import
 
   const roster = cstate.roster || [];
   const professors = cstate.professors || [];
@@ -106,6 +196,65 @@ export default function MCPanel({
     } catch {
       /* clipboard blocked */
     }
+  };
+
+  // --- CSV import / export (MC only) ---------------------------------------
+  const importCsv = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onerror = () => setCsvNote('Could not read that file.');
+    reader.onload = () => {
+      const parsed = rowsToImport(parseCsv(reader.result));
+      // Dedupe so the summary reflects what's actually new: drop names already in the roster
+      // and any repeats within the file itself. The server guards against dupes too.
+      const haveS = new Set(roster.map((s) => s.name.trim().toLowerCase()));
+      const haveP = new Set(professors.map((p) => p.name.trim().toLowerCase()));
+      const students = dedupeByName(parsed.students, haveS);
+      const profs = dedupeByName(parsed.professors, haveP);
+      const dupes = parsed.students.length - students.length + (parsed.professors.length - profs.length);
+
+      if (!students.length && !profs.length) {
+        const why = parsed.skipped
+          ? `${parsed.skipped} row${parsed.skipped === 1 ? '' : 's'} had no recognised role`
+          : 'nothing new to add';
+        setCsvNote(`Nothing imported — ${why}.`);
+        return;
+      }
+      actions.importRoster({ students, professors: profs });
+      const parts = [
+        `${students.length} student${students.length === 1 ? '' : 's'}`,
+        `${profs.length} professor${profs.length === 1 ? '' : 's'}`,
+      ];
+      const extra = [];
+      if (dupes > 0) extra.push(`${dupes} duplicate${dupes === 1 ? '' : 's'} skipped`);
+      if (parsed.skipped) extra.push(`${parsed.skipped} unrecognised`);
+      setCsvNote(`Added ${parts.join(' + ')}${extra.length ? ` (${extra.join(', ')})` : ''}.`);
+    };
+    reader.readAsText(file);
+  };
+  const onCsvFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // let the MC re-pick the same file later
+    importCsv(file);
+  };
+  // Download the roster as name,role,link — every student + professor, with the one shared
+  // guest link as the last row. Reuses the exact links the per-row 🔗 buttons copy.
+  const downloadCsv = () => {
+    const rows = [['name', 'role', 'link']];
+    for (const s of roster) rows.push([s.name, s.degree || 'bachelor', joinLink(s.name, 'student')]);
+    for (const p of professors) rows.push([p.name, 'professor', joinLink(p.name, 'professor')]);
+    rows.push(['Guest', 'guest', guestLink()]);
+    const base = (cstate.university || cstate.department || 'ceremony')
+      .trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'ceremony';
+    const blob = new Blob([`\uFEFF${toCsv(rows)}`], { type: 'text/csv;charset=utf-8' }); // BOM → Excel reads UTF-8
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${base}-roster.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const gestureStat =
@@ -277,6 +426,28 @@ export default function MCPanel({
                   {copied === 'guest' ? '✓ copied' : '🔗 guest link'}
                 </button>
               </div>
+            </>
+          )}
+
+          {canEditRoster && (
+            <>
+              <div className="mc-section">Roster · CSV</div>
+              <div className="mc-csv">
+                <button
+                  onClick={() => fileRef.current && fileRef.current.click()}
+                  title="Import people from a CSV — column 1 name, column 2 role (bachelor / master / phd / professor)"
+                >
+                  ⬆ Import
+                </button>
+                <button
+                  onClick={downloadCsv}
+                  title="Download name, role and a personal join link for everyone (shared guest link last)"
+                >
+                  ⬇ Download
+                </button>
+                <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={onCsvFile} />
+              </div>
+              {csvNote && <p className="mc-tip">{csvNote}</p>}
             </>
           )}
 
