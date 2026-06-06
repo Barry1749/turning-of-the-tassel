@@ -110,10 +110,7 @@ export default function MCPanel({
 }) {
   const [open, setOpen] = useState(true);
   const [newName, setNewName] = useState('');
-  const [newDegree, setNewDegree] = useState('bachelor'); // degree for the next student added
-  const [newProf, setNewProf] = useState(''); // name for the next professor added
-  const [uni, setUni] = useState(cstate.university || '');
-  const [dept, setDept] = useState(cstate.department || '');
+  const [newRole, setNewRole] = useState('bachelor'); // role for the next person added: a degree id (student) or 'professor'
   const [copied, setCopied] = useState(null);
   const [dragIndex, setDragIndex] = useState(null); // student row being dragged
   const [overIndex, setOverIndex] = useState(null); // row it's hovering over
@@ -125,24 +122,15 @@ export default function MCPanel({
   const ceremony = cstate.mode === 'ceremony';
   const current = roster.find((s) => s.id === cstate.currentId) || null;
 
-  const addStudent = () => {
-    if (!newName.trim()) return;
-    actions.addStudent({ name: newName.trim(), degree: newDegree });
-    setNewName(''); // keep newDegree so several same-degree students can be added in a row
-  };
-  const addProfessor = () => {
-    if (!newProf.trim()) return;
-    actions.addProfessor({ name: newProf.trim() });
-    setNewProf('');
-  };
-  // Auto-save the ceremony info when the MC finishes a field (blur / Enter); only push
-  // if it actually changed, so tabbing through unchanged fields doesn't spam the room.
-  const saveInfo = () => {
-    const university = uni.trim();
-    const department = dept.trim();
-    if (university !== (cstate.university || '') || department !== (cstate.department || '')) {
-      actions.setInfo({ university, department });
-    }
+  // One add control for everyone: a student gets a degree (→ tassel colour); a professor (who
+  // turns the tassel) is the fourth role. Keep newRole after adding so a run of the same role
+  // can be entered quickly.
+  const addParticipant = () => {
+    const name = newName.trim();
+    if (!name) return;
+    if (newRole === 'professor') actions.addProfessor({ name });
+    else actions.addStudent({ name, degree: newRole });
+    setNewName('');
   };
 
   // Drag-to-reorder the student program: grab a row's handle, drop it on another row,
@@ -299,7 +287,7 @@ export default function MCPanel({
     for (const s of roster) rows.push([s.name, s.degree || 'bachelor', joinLink(s.token)]);
     for (const p of professors) rows.push([p.name, 'professor', joinLink(p.token)]);
     rows.push(['Guest', 'guest', guestLink()]);
-    const base = (cstate.university || cstate.department || 'ceremony')
+    const base = (cstate.title || 'ceremony')
       .trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'ceremony';
     const blob = new Blob([`\uFEFF${toCsv(rows)}`], { type: 'text/csv;charset=utf-8' }); // BOM → Excel reads UTF-8
     const url = URL.createObjectURL(blob);
@@ -332,28 +320,6 @@ export default function MCPanel({
 
       {open && (
         <div className="mc-body">
-          {canEditRoster && (
-            <>
-              <div className="mc-section">Ceremony</div>
-              <input
-                className="mc-in"
-                placeholder="University"
-                value={uni}
-                onChange={(e) => setUni(e.target.value)}
-                onBlur={saveInfo}
-                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-              />
-              <input
-                className="mc-in"
-                placeholder="Department"
-                value={dept}
-                onChange={(e) => setDept(e.target.value)}
-                onBlur={saveInfo}
-                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-              />
-            </>
-          )}
-
           <div className="mc-seg">
             <button className={!ceremony ? 'sel' : ''} onClick={() => actions.setMode('normal')}>Gallery</button>
             <button className={ceremony ? 'sel' : ''} onClick={() => actions.setMode('ceremony')}>Ceremony</button>
@@ -422,29 +388,6 @@ export default function MCPanel({
           </ol>
 
           {canEditRoster && (
-            <div className="mc-add">
-              <input
-                className="mc-in"
-                placeholder="Add student name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addStudent()}
-              />
-              <select
-                className="mc-degree-new"
-                value={newDegree}
-                onChange={(e) => setNewDegree(e.target.value)}
-                title="Degree for the new student — sets their tassel colour"
-              >
-                {DEGREE_TASSELS.map((d) => (
-                  <option key={d.id} value={d.id}>{d.label}</option>
-                ))}
-              </select>
-              <button onClick={addStudent}>Add</button>
-            </div>
-          )}
-
-          {canEditRoster && (
             <>
               <div className="mc-section">Professors</div>
               <ol className="mc-roster mc-roster-profs">
@@ -461,16 +404,6 @@ export default function MCPanel({
                   </li>
                 ))}
               </ol>
-              <div className="mc-add">
-                <input
-                  className="mc-in"
-                  placeholder="Add professor name"
-                  value={newProf}
-                  onChange={(e) => setNewProf(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addProfessor()}
-                />
-                <button onClick={addProfessor}>Add</button>
-              </div>
 
               <div className="mc-section">
                 Guests · {guestCount}
@@ -481,6 +414,33 @@ export default function MCPanel({
                 >
                   {copied === 'guest' ? '✓ copied' : '🔗 guest link'}
                 </button>
+              </div>
+            </>
+          )}
+
+          {canEditRoster && (
+            <>
+              <div className="mc-section">Add participant</div>
+              <div className="mc-add">
+                <input
+                  className="mc-in"
+                  placeholder="Add participant name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addParticipant()}
+                />
+                <select
+                  className="mc-degree-new"
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  title="Role — bachelor / master / phd set the tassel colour; a professor turns the tassel"
+                >
+                  {DEGREE_TASSELS.map((d) => (
+                    <option key={d.id} value={d.id}>{d.label}</option>
+                  ))}
+                  <option value="professor">Professor</option>
+                </select>
+                <button onClick={addParticipant}>Add</button>
               </div>
             </>
           )}

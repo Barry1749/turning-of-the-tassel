@@ -38,8 +38,7 @@ const state = {
   currentId: null, // spotlighted student
   tassel: { angle: REST_ANGLE, engaged: false },
   countdown: null,
-  university: '', // set by the MC at the start of the ceremony
-  department: '',
+  title: 'Turning of the Tassel', // editable ceremony title shown in the top bar (set by the MC)
   guestToken: newToken(), // one shared watch-only link for guests
 };
 
@@ -271,10 +270,9 @@ wss.on('connection', (ws) => {
         broadcastState();
         break;
 
-      case 'setInfo':
+      case 'setTitle':
         if (!isHost(me)) break;
-        if (typeof msg.university === 'string') state.university = msg.university;
-        if (typeof msg.department === 'string') state.department = msg.department;
+        if (typeof msg.title === 'string') state.title = msg.title;
         broadcastState();
         break;
       case 'removeStudent':

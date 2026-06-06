@@ -27,6 +27,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
 
   const [gestureOn, setGestureOn] = useState(true);
   const [banner, setBanner] = useState(null);
+  const [titleDraft, setTitleDraft] = useState(null); // non-null only while the MC is editing the ceremony title
 
   const roster = cstate?.roster || [];
   const currentStudent = roster.find((s) => s.id === cstate?.currentId) || null;
@@ -134,7 +135,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     reorderStudents: (ids) => send({ type: 'reorderStudents', ids }),
     addStudent: (s) => send({ type: 'addStudent', ...s }),
     addProfessor: (p) => send({ type: 'addProfessor', ...p }),
-    setInfo: (info) => send({ type: 'setInfo', ...info }),
+    setTitle: (title) => send({ type: 'setTitle', title }),
     setDegree: (id, degree) => send({ type: 'updateStudent', id, fields: { degree } }),
     removeStudent: (id) => send({ type: 'removeStudent', id }),
     removeProfessor: (id) => send({ type: 'removeProfessor', id }),
@@ -185,10 +186,35 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
           : 'Video…'
       : `P2P ${p2p.count}`;
 
+  // The brand in the top bar IS the ceremony title — the MC/host edits it inline. Commit on
+  // blur/Enter, and only when it actually changed; an empty title falls back to the app name.
+  const saveTitle = () => {
+    if (titleDraft === null) return; // wasn't editing
+    const title = titleDraft.trim();
+    setTitleDraft(null);
+    if (title && title !== (cstate.title || '')) actions.setTitle(title);
+  };
+
   return (
     <div className="app">
       <header className="topbar">
-        <span className="brand">🎓 Turning of the Tassel</span>
+        <span className="brand">
+          🎓{' '}
+          {canEditRoster ? (
+            <input
+              className="brand-edit"
+              value={titleDraft ?? (cstate.title || '')}
+              placeholder="Ceremony title"
+              title="Click to rename the ceremony"
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              onBlur={saveTitle}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+          ) : (
+            cstate.title || 'Turning of the Tassel'
+          )}
+        </span>
         <span className={`mode-pill ${cstate.mode}`}>{cstate.mode === 'ceremony' ? 'Ceremony' : 'Gallery'}</span>
         <span className="video-pill" title={videoError || ''}>{videoLabel}</span>
         <span className="spacer" />

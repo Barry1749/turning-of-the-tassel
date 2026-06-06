@@ -1,8 +1,8 @@
 import ParticipantTile from './ParticipantTile';
 import { REST_ANGLE } from '../tassel';
 
-// Ceremony mode: zoom to the professor + the current student, with the ceremony-level
-// university / department caption (set by the MC).
+// Ceremony mode: zoom to the professor + the current student, with the ceremony title
+// caption (set by the MC).
 export default function Spotlight({ cstate, participants, myId, selfStream, remote, tasselRef }) {
   const roster = cstate.roster || [];
   const current = roster.find((s) => s.id === cstate.currentId) || null;
@@ -49,13 +49,7 @@ export default function Spotlight({ cstate, participants, myId, selfStream, remo
           {current && (
             <div className="spot-caption">
               <div className="spot-name">{current.name}</div>
-              {(cstate.university || cstate.department) && (
-                <div className="spot-sub">
-                  {cstate.university}
-                  {cstate.university && cstate.department ? ' · ' : ''}
-                  {cstate.department}
-                </div>
-              )}
+              {cstate.title && <div className="spot-sub">{cstate.title}</div>}
             </div>
           )}
         </div>

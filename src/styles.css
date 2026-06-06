@@ -95,6 +95,33 @@ button.link {
 }
 .topbar .brand {
   font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* The brand text is the editable ceremony title (MC/host); it reads as plain text until hovered/focused. */
+.brand-edit {
+  font: inherit;
+  font-weight: 800;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  width: clamp(8ch, 24ch, 40vw);
+  max-width: 40vw;
+}
+.brand-edit:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.brand-edit:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.brand-edit::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 600;
 }
 .topbar .spacer {
   flex: 1;
@@ -345,7 +372,7 @@ button.link {
   position: absolute;
   top: 56px;
   right: 12px;
-  width: 290px;
+  width: 380px; /* desktop / PC width — roomier so roster names fit on one line; phones go full-width (see the max-width:720px rule) */
   bottom: 12px; /* top + bottom pin it to the screen height (no fixed px height) */
   display: flex;
   flex-direction: column;
