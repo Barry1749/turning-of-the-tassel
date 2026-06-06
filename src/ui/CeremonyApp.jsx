@@ -9,6 +9,7 @@ import { setSelfDegree } from '../drawCap';
 import { celebrate, initAudio } from '../effects';
 import Stage from './Stage';
 import MCPanel from './MCPanel';
+import MediaControls from './MediaControls';
 import Countdown from './Countdown';
 
 export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
@@ -50,7 +51,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
 
   // MC needs no camera (phone-friendly); professor + students do.
   const needCamera = isProfessor || role === 'student';
-  const { stream: selfStream, publishStream, status: camStatus, error: camError, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture } = useSelfView({
+  const { stream: selfStream, publishStream, status: camStatus, error: camError, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture, camOn, micOn, hasMic, toggleCam, toggleMic } = useSelfView({
     active: needCamera,
     isHost: isProfessor,
     gestureEnabled: gestureOn,
@@ -58,6 +59,7 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
     getDrawAngle,
     onTassel,
     onCommit,
+    name,
   });
 
   // Video transport: LiveKit (SFU) when configured, else Daily if a room URL is set,
@@ -194,6 +196,16 @@ export default function CeremonyApp({ name, role, roomUrl, onLeave }) {
           faceOk={faceOk}
           handOk={handOk}
           pinching={pinching}
+        />
+      )}
+
+      {needCamera && camStatus === 'ready' && (
+        <MediaControls
+          camOn={camOn}
+          micOn={micOn}
+          hasMic={hasMic}
+          onToggleCam={toggleCam}
+          onToggleMic={toggleMic}
         />
       )}
 

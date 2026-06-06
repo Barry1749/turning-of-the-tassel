@@ -190,6 +190,46 @@ export function drawFlippedX(dst, src) {
   ctx.restore();
 }
 
+// "Camera off" placeholder painted onto the composite canvas when the wearer turns their video
+// off (the Meet-style camera toggle). The captured canvas track keeps flowing, so peers see this
+// avatar + label instead of a frozen frame. Self-contained (drawn un-mirrored on both the local
+// and published canvases), so it carries no camera pixels and the text never comes out backwards.
+export function drawCameraOff(canvas, name = '') {
+  const w = canvas.width || 1280;
+  const h = canvas.height || 720;
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#1b1e44');
+  g.addColorStop(1, '#0b0c1c');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h * 0.42;
+  const r = Math.min(w, h) * 0.16;
+
+  // avatar disc with the wearer's initial (falls back to a cap glyph when nameless)
+  ctx.fillStyle = '#3a3f6e';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  const initial = (name || '').trim().charAt(0).toUpperCase();
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${initial ? 'bold ' : ''}${Math.round(r * 1.1)}px system-ui, sans-serif`;
+  ctx.fillText(initial || '🎓', cx, cy + r * 0.04);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = `600 ${Math.round(h * 0.045)}px system-ui, sans-serif`;
+  ctx.fillText('Camera off', cx, cy + r + h * 0.12);
+}
+
 export function renderNameCard(canvas, { name = '', flag = '🎓', angle = REST_ANGLE, turned = false, degree = 'bachelor' }) {
   if (canvas.width !== 640) canvas.width = 640;
   if (canvas.height !== 480) canvas.height = 480;

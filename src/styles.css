@@ -265,6 +265,51 @@ button.link {
   background: #f6cf6e;
 }
 
+/* ---------- Media controls (Meet-style camera / mic toggle) ---------- */
+.media-controls {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  padding: 9px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  z-index: 8;
+}
+.media-btn {
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+.media-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.26);
+}
+.media-btn:active:not(:disabled) {
+  transform: scale(0.93);
+}
+.media-btn.off {
+  background: #e5484d;
+}
+.media-btn.off:hover:not(:disabled) {
+  background: #f05a5f;
+}
+.media-btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
 /* ---------- Spotlight ---------- */
 .spotlight {
   flex: 1;

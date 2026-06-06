@@ -11,7 +11,7 @@ import { createLandmarkers } from './vision';
 import { computeCapTransform } from './headPose';
 import { createGestureTracker } from './gesture';
 import { TasselController, REST_ANGLE } from './tassel';
-import { drawScene, drawFlippedX } from './drawCap';
+import { drawScene, drawFlippedX, drawCameraOff } from './drawCap';
 
 async function getCamera() {
   const video = { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' };
@@ -23,7 +23,7 @@ async function getCamera() {
   }
 }
 
-export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, getDrawAngle, onTassel, onCommit }) {
+export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, getDrawAngle, onTassel, onCommit, name = '' }) {
   const [stream, setStream] = useState(null); // mirrored composite — the owner's own tile
   const [publishStream, setPublishStream] = useState(null); // un-mirrored composite — sent to peers
   const [status, setStatus] = useState('idle'); // idle | starting | ready | error
@@ -33,10 +33,13 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
   const [faceOk, setFaceOk] = useState(false);
   const [handOk, setHandOk] = useState(false);
   const [pinching, setPinching] = useState(false);
+  const [camOn, setCamOn] = useState(true); // Meet-style camera toggle
+  const [micOn, setMicOn] = useState(true); // Meet-style mic toggle
+  const [hasMic, setHasMic] = useState(false); // false until we confirm an audio track exists
 
   const ref = useRef({});
   const cb = useRef({});
-  cb.current = { getDrawAngle, onTassel, onCommit, turnKey, gestureEnabled };
+  cb.current = { getDrawAngle, onTassel, onCommit, turnKey, gestureEnabled, camOn, name };
 
   useEffect(() => {
     if (!active) return undefined;
@@ -107,6 +110,11 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
       if (audio) pubOut.addTrack(audio); // a track can belong to both streams; audio is unflipped
       setPublishStream(pubOut);
 
+      // Drive the mic toggle off the real track: enabled=false sends silence to peers (Meet-style
+      // mute). With no mic granted there's nothing to toggle, so report it off + unavailable.
+      setHasMic(!!audio);
+      setMicOn(!!audio);
+
       setStatus('ready');
       requestAnimationFrame(loop);
 
@@ -126,7 +134,19 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
       const S = ref.current;
       if (!S.running) return;
       const { video, canvas } = S;
-      if (video && video.readyState >= 2) {
+      if (!cb.current.camOn) {
+        // Camera off: keep feeding the SAME captured canvas track, but paint a placeholder
+        // (avatar + "Camera off") onto it — the way Meet shows your tile when video is off, with
+        // no track teardown/republish. Draw it on BOTH canvases directly (not via drawFlippedX)
+        // so the label reads the right way round on the published, un-mirrored feed too.
+        drawCameraOff(canvas, cb.current.name);
+        if (S.pubCanvas) drawCameraOff(S.pubCanvas, cb.current.name);
+        if (S.frame++ % 8 === 0) {
+          setFaceOk(false);
+          setHandOk(false);
+          setPinching(false);
+        }
+      } else if (video && video.readyState >= 2) {
         const ts = Math.max((S.lastTs || 0) + 1, Math.floor(now));
         S.lastTs = ts;
 
@@ -214,5 +234,26 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
     ref.current.controller?.forceTurn();
   }, []);
 
-  return { stream, publishStream, status, error, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture };
+  // Mic: flip the audio track's enabled flag (peers hear silence while off).
+  const toggleMic = useCallback(() => {
+    setMicOn((on) => {
+      const next = !on;
+      const track = ref.current.media?.getAudioTracks?.()[0];
+      if (track) track.enabled = next;
+      return next;
+    });
+  }, []);
+  // Camera: the loop reads cb.current.camOn next frame and swaps in the placeholder. Also pause
+  // the source capture (enabled=false) so the camera pipeline idles; the placeholder covers the
+  // (now black) frames either way, and the published canvas track is untouched (no republish).
+  const toggleCam = useCallback(() => {
+    setCamOn((on) => {
+      const next = !on;
+      const track = ref.current.media?.getVideoTracks?.()[0];
+      if (track) track.enabled = next;
+      return next;
+    });
+  }, []);
+
+  return { stream, publishStream, status, error, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture, camOn, micOn, hasMic, toggleCam, toggleMic };
 }
