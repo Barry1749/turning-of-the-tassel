@@ -142,8 +142,11 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     importRoster: (payload) => send({ type: 'importRoster', ...payload }),
     countdown: (n) => send({ type: 'startCountdown', n }),
     resetTassel: () => {
+      // The server is authoritative — reset there so every viewer (and late joiners) snap back,
+      // even when the host has no camera/controller. Also reset the professor's local controller
+      // so its ~25Hz stream doesn't immediately re-assert the committed angle over the reset.
       if (isProfessor) resetGesture();
-      else send({ type: 'resetTassel' });
+      send({ type: 'resetTassel' });
     },
     commit: () => send({ type: 'commit' }),
     resetAll: () => send({ type: 'resetAll' }),
