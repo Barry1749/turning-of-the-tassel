@@ -25,6 +25,7 @@ async function getCamera() {
 
 export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, getDrawAngle, onTassel, onCommit, name = '' }) {
   const [stream, setStream] = useState(null); // mirrored composite — the owner's own tile
+  const [selfCanvas, setSelfCanvas] = useState(null); // the mirrored composite's CANVAS, shown directly
   const [publishStream, setPublishStream] = useState(null); // un-mirrored composite — sent to peers
   const [status, setStatus] = useState('idle'); // idle | starting | ready | error
   const [error, setError] = useState('');
@@ -65,7 +66,12 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
       }
 
       const video = document.createElement('video');
-      video.srcObject = media;
+      // Feed this element ONLY the camera's video track. It exists just to drive face/hand detection
+      // and the canvas composite — it never needs the mic. Crucially, if its stream carries the mic
+      // audio track, iOS registers a "Now Playing" media session for it (even though it's muted and
+      // off-DOM) and then overlays a system play/pause button on the visible self-view tile — which
+      // can actually pause it. The mic still reaches peers: pubOut adds the audio track from `media`.
+      video.srcObject = new MediaStream(media.getVideoTracks());
       video.muted = true;
       video.playsInline = true;
       try {
@@ -101,13 +107,23 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
         running: true,
       });
 
+      // Show the composite CANVAS directly on the owner's own tile (not a <video> playing a captured
+      // stream): iOS Safari overlays a system play/pause control on a large playing inline <video> it
+      // deems "main content" — even muted/audio-free — but never on a <canvas>. (We still capture the
+      // canvas below for any stream consumers.)
+      setSelfCanvas(canvas);
+
       const out = canvas.captureStream(30); // mirrored — the owner's own self-view tile
       const audio = media.getAudioTracks()[0];
-      if (audio) out.addTrack(audio);
+      // Deliberately DON'T add the mic to the self-view stream: the owner's own tile is always muted
+      // (ParticipantTile sets v.muted = isSelf), so this track was never heard — but iOS Safari
+      // promotes ANY <video> whose stream carries an audio track to a "Now Playing" media element and
+      // overlays a system play/pause control on it (which actually pauses, freezing the self-view).
+      // Peers still get audio: it rides on the published stream below.
       setStream(out);
 
       const pubOut = pubCanvas.captureStream(30); // un-mirrored — the feed broadcast to peers
-      if (audio) pubOut.addTrack(audio); // a track can belong to both streams; audio is unflipped
+      if (audio) pubOut.addTrack(audio); // peers hear the mic from here; the muted self tile doesn't need it
       setPublishStream(pubOut);
 
       // Drive the mic toggle off the real track: enabled=false sends silence to peers (Meet-style
@@ -220,6 +236,7 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
       S.running = false;
       S.media?.getTracks().forEach((t) => t.stop());
       setStream(null);
+      setSelfCanvas(null);
       setPublishStream(null);
       setStatus('idle');
       setArReady(false);
@@ -255,5 +272,5 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
     });
   }, []);
 
-  return { stream, publishStream, status, error, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture, camOn, micOn, hasMic, toggleCam, toggleMic };
+  return { stream, selfCanvas, publishStream, status, error, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture, camOn, micOn, hasMic, toggleCam, toggleMic };
 }

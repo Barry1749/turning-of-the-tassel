@@ -6,6 +6,7 @@ import { REST_ANGLE } from '../tassel';
 // show it; otherwise draw a name-card placeholder whose tassel reflects the live angle.
 export default function ParticipantTile({
   stream,
+  selfCanvas,
   name,
   flag = '',
   role,
@@ -18,6 +19,12 @@ export default function ParticipantTile({
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  // The owner's own tile mounts the self-view's composite <canvas> directly (see useSelfView): a
+  // <canvas> never gets iOS's "main content" play/pause overlay, unlike a <video>. display:contents
+  // on the host so the canvas sizes to the .tile (via the .tile canvas rule) without an extra box.
+  const selfHostRef = (el) => {
+    if (el && selfCanvas && selfCanvas.parentNode !== el) el.appendChild(selfCanvas);
+  };
   const getAngleRef = useRef(getAngle);
   getAngleRef.current = getAngle;
   const [needsUnmute, setNeedsUnmute] = useState(false);
@@ -33,6 +40,11 @@ export default function ParticipantTile({
     v.srcObject = stream;
     v.muted = isSelf;
     let cancelled = false;
+    // These are live streams — they should never sit paused. iOS can still surface a system pause
+    // control on a large "main-content" video (we hide it / block its taps via CSS, but as a final
+    // safety net): if anything pauses us, resume at once so the view can't be frozen.
+    const onPause = () => { if (!cancelled) v.play().catch(() => {}); };
+    v.addEventListener('pause', onPause);
     (async () => {
       try {
         await v.play();
@@ -50,6 +62,7 @@ export default function ParticipantTile({
     })();
     return () => {
       cancelled = true;
+      v.removeEventListener('pause', onPause);
     };
   }, [stream, isSelf]);
 
@@ -81,7 +94,9 @@ export default function ParticipantTile({
 
   return (
     <div className={`tile ${isCurrent ? 'current' : ''} ${big ? 'big' : ''}`}>
-      {stream ? (
+      {isSelf && selfCanvas ? (
+        <div style={{ display: 'contents' }} ref={selfHostRef} />
+      ) : stream ? (
         <video ref={videoRef} autoPlay playsInline />
       ) : (
         <canvas ref={canvasRef} />

@@ -3,7 +3,7 @@ import { REST_ANGLE } from '../tassel';
 
 // Ceremony mode: zoom to the professor + the current student, with the ceremony title
 // caption (set by the MC).
-export default function Spotlight({ cstate, participants, myId, selfStream, remote, tasselRef }) {
+export default function Spotlight({ cstate, participants, myId, selfStream, selfCanvas, remote, tasselRef }) {
   const roster = cstate.roster || [];
   const current = roster.find((s) => s.id === cstate.currentId) || null;
   const host = participants.find((p) => p.role === 'host' || p.role === 'professor') || null;
@@ -24,6 +24,7 @@ export default function Spotlight({ cstate, participants, myId, selfStream, remo
           <ParticipantTile
             big
             stream={streamFor(host)}
+            selfCanvas={host?.id === myId ? selfCanvas : null}
             name={host?.name || 'Professor'}
             role="host"
             isSelf={host?.id === myId}
@@ -38,6 +39,7 @@ export default function Spotlight({ cstate, participants, myId, selfStream, remo
           <ParticipantTile
             big
             stream={streamFor(studentP)}
+            selfCanvas={studentP?.id === myId ? selfCanvas : null}
             name={current?.name || '—'}
             role="student"
             isSelf={studentP?.id === myId}

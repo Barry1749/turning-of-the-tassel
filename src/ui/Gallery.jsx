@@ -5,7 +5,7 @@ import { REST_ANGLE } from '../tassel';
 // The MC and guests are operators/viewers and don't get a tile.
 const ON_CAMERA = ['student', 'professor', 'host'];
 
-export default function Gallery({ cstate, participants, myId, myName, selfStream, remote, tasselRef }) {
+export default function Gallery({ cstate, participants, myId, myName, selfStream, selfCanvas, remote, tasselRef }) {
   const roster = cstate.roster || [];
   const byName = (n) => roster.find((s) => s.name.toLowerCase() === (n || '').toLowerCase());
 
@@ -30,6 +30,7 @@ export default function Gallery({ cstate, participants, myId, myName, selfStream
           <ParticipantTile
             key={p.id}
             stream={stream}
+            selfCanvas={isSelf ? selfCanvas : null}
             name={p.name}
             role={p.role}
             isSelf={isSelf}

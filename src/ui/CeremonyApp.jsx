@@ -58,7 +58,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
 
   // MC needs no camera (phone-friendly); professor + students do.
   const needCamera = isProfessor || role === 'student';
-  const { stream: selfStream, publishStream, status: camStatus, error: camError, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture, camOn, micOn, hasMic, toggleCam, toggleMic } = useSelfView({
+  const { stream: selfStream, selfCanvas, publishStream, status: camStatus, error: camError, arReady, arError, faceOk, handOk, pinching, resetGesture, forceTurnGesture, camOn, micOn, hasMic, toggleCam, toggleMic } = useSelfView({
     active: needCamera,
     isHost: isProfessor,
     gestureEnabled: gestureOn,
@@ -232,6 +232,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
         myId={myId}
         myName={name}
         selfStream={selfStream}
+        selfCanvas={selfCanvas}
         remote={remote}
         tasselRef={tasselRef}
       />

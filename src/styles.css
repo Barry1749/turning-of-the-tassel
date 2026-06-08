@@ -226,6 +226,24 @@ button.link {
   object-fit: cover;
   display: block;
 }
+/* iOS Safari auto-shows a play/pause overlay on a large, playing inline <video> it deems the page's
+   "main content" — even muted and audio-free, as our self-view tile is. We drive playback ourselves
+   and never want native controls (remote tiles use the in-app "Tap for sound" button), so hide
+   WebKit's control pseudo-elements. The overlay-play-button is the big centered pause button. */
+.tile video::-webkit-media-controls,
+.tile video::-webkit-media-controls-enclosure,
+.tile video::-webkit-media-controls-panel,
+.tile video::-webkit-media-controls-overlay-play-button,
+.tile video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+/* iOS often ignores the rules above, so also make the video swallow no taps: with pointer-events
+   off, a tap can't reach the native control (we never interact with the video directly — sound is a
+   separate in-app button). The tile caption + "Tap for sound" button are siblings and still work. */
+.tile video {
+  pointer-events: none;
+}
 .tile-cap {
   position: absolute;
   left: 0;
