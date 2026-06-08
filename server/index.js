@@ -348,11 +348,16 @@ wss.on('connection', (ws) => {
         broadcastState();
         break;
       }
-      case 'resetTassel':
+      case 'resetTassel': {
         if (!isHost(me)) break;
         state.tassel = { angle: REST_ANGLE, engaged: false };
+        // Un-mark the current student too, so the roster ✓ clears in step with the tassel.
+        const s = state.roster.find((x) => x.id === (msg.id || state.currentId));
+        if (s) s.turned = false;
         broadcast({ type: 'tassel', angle: REST_ANGLE, engaged: false, studentId: state.currentId });
+        broadcastState();
         break;
+      }
 
       // WebRTC signaling relay between two peers (any role)
       case 'signal':
