@@ -46,7 +46,11 @@ const capSize = {
                        // cap was tuned on a 16:9 webcam; learning the ratio against this FIXED aspect
                        // instead of the live camera's keeps the cap the same size on a laptop and on a
                        // portrait/4:3 phone (see the calibration note below).
-  pitchGate: 0.12,     // |pitch| (radians) below which a frame counts as "frontal" for learning
+  pitchGate: 0.6,      // |pitch| (radians, ~34°) within which calibration is trusted. Wide on
+                       // purpose: the forehead<->chin span is now pitch-corrected, so a nod no longer
+                       // fudges the learned size — this only fences off extreme poses (and stays
+                       // inside the foreshorten clamp's reliable range) so a phone held low, where you
+                       // look DOWN at the screen, still calibrates instead of keeping the default.
   ema: 0.05,           // how fast the learned ratio tracks (0 = frozen, 1 = instant but jittery)
   tolerance: 0.15,     // outlier guard: ignore a calibration frame whose ratio is >15% off the
                        // established one (a failed/occluded detection — e.g. a hand sweeping across
@@ -95,36 +99,49 @@ export function computeCapTransform(lm, matrix, vw = 0, vh = 0) {
   // foreshortening of the eye (local-X) axis so a turn doesn't resize the cap.
   let yaw = 0;
   let pitch = 0;
-  let foreshorten = 1;
+  let foreshorten = 1;     // eye span (local-X) projection — shrinks on a YAW (turn)
+  let faceForeshorten = 1; // forehead<->chin (local-Y) projection — shrinks on a PITCH (nod)
   if (matrix && matrix.length >= 16) {
     _m.fromArray(matrix);
     _e.setFromRotationMatrix(_m, 'YXZ');
     pitch = _e.x;
     yaw = _e.y;
-    // Column 0 is the head's local +X axis in camera space; its camera-Z component is how far
-    // the eye line tilts out of the image plane on a turn. A segment along it projects to
-    // sqrt(1 - axisZ^2) of its true length. (Normalize in case the matrix carries scale.)
+    // A segment along one of the head's local axes projects to sqrt(1 - axisZ^2) of its true length,
+    // where axisZ is that axis's camera-Z component (how far it tilts out of the image plane). The
+    // matrix columns are those axes in camera space (column-major: col 0 = +X, col 1 = +Y). The eye
+    // span runs along +X (foreshortens on a turn); forehead<->chin runs along +Y (foreshortens on a
+    // nod). Normalize each column in case the matrix carries scale; clamp so we never amplify >2x.
     const xx = matrix[0], xy = matrix[1], xz = matrix[2];
-    const len = Math.hypot(xx, xy, xz) || 1;
-    const axisZ = xz / len;
-    foreshorten = Math.sqrt(Math.max(0.25, 1 - axisZ * axisZ)); // clamp: never amplify >2x
+    const xlen = Math.hypot(xx, xy, xz) || 1;
+    foreshorten = Math.sqrt(Math.max(0.25, 1 - (xz / xlen) ** 2));
+    const yx = matrix[4], yy = matrix[5], yz = matrix[6];
+    const ylen = Math.hypot(yx, yy, yz) || 1;
+    faceForeshorten = Math.sqrt(Math.max(0.25, 1 - (yz / ylen) ** 2));
   }
 
   // Yaw-corrected eye span: constant under ANY pure rotation, scales with real distance.
   const eyeSize = eyeSpan2D / foreshorten;
 
-  // Calibrate restRatio only when near-frontal in PITCH (forehead<->chin foreshortens on a nod;
-  // it's invariant to yaw/roll, and eyeSize is already yaw-corrected, so only pitch must be
-  // small). Snap on the first good frame for an instantly-correct size, then track slowly. The
-  // ratio is distance-invariant (both spans scale together), so leaning in/out doesn't disturb it.
+  // Pitch-correct the forehead<->chin span so it's NOD-invariant, the same way eyeSize divides out
+  // the eye span's yaw foreshortening. Without this the span only reads true near eye level — which
+  // is why a phone, held low so you look DOWN at it, used to miss the narrow pitch gate entirely and
+  // keep the slightly-large default size. Corrected, it calibrates at the angle you actually hold a
+  // phone and lands on the same value as the laptop.
+  const faceSpanCorr = faceSpan2D / faceForeshorten;
+
+  // Calibrate within a (now generous) reliable pose cone. Both spans are rotation-corrected, so the
+  // gate no longer fences off ordinary nodding — it only rejects extreme poses where the landmarks /
+  // pose matrix get noisy. Snap on the first good frame for an instantly-correct size, then track
+  // slowly. The ratio is distance-invariant (both spans scale together), so leaning in/out doesn't
+  // disturb it.
   if (capSize.autoCalibrate && eyeSize > 1e-4 && Math.abs(pitch) < capSize.pitchGate && Math.abs(yaw) < 0.5) {
-    // Both spans are now in aspect-corrected width units (see aspy above), so their ratio is the pure
-    // facial geometry (forehead-chin / eye span) — independent of the camera's aspect. refAspect
-    // rescales that to the value the cap was tuned on (a 16:9 webcam), so every device — landscape
-    // laptop or portrait phone — learns the SAME ratio and the cap is the same size. With the frame
-    // size still unknown the spans are raw-normalized, so fall back to the legacy estimate (no
-    // refAspect, which would otherwise double-count the aspect).
-    const ratio = vw > 0 && vh > 0 ? (faceSpan2D / eyeSize) * capSize.refAspect : faceSpan2D / eyeSize;
+    // Both spans are now in aspect-corrected width units (see aspy above) AND rotation-corrected, so
+    // their ratio is the pure facial geometry (forehead-chin / eye span) — independent of the
+    // camera's aspect and of head pose. refAspect rescales that to the value the cap was tuned on (a
+    // 16:9 webcam), so every device — landscape laptop or portrait phone — learns the SAME ratio and
+    // the cap is the same size. With the frame size still unknown the spans are raw-normalized, so
+    // fall back to the legacy estimate (no refAspect, which would otherwise double-count the aspect).
+    const ratio = vw > 0 && vh > 0 ? (faceSpanCorr / eyeSize) * capSize.refAspect : faceSpanCorr / eyeSize;
     if (ratio > 1.2 && ratio < 4.5) {
       if (!restCalibrated) {
         capSize.ratio = ratio; // first frontal frame: snap to a correct size immediately
