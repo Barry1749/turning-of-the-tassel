@@ -42,6 +42,10 @@ const _e = new Euler(0, 0, 0, 'YXZ');
 const capSize = {
   autoCalibrate: true, // learn the size ratio from your face while you're near-frontal
   ratio: 3.0,          // current size ratio — read it live; write it after autoCalibrate=false
+  refAspect: 16 / 9,   // reference camera aspect (width/height) the size ratio is normalized to. The
+                       // cap was tuned on a 16:9 webcam; learning the ratio against this FIXED aspect
+                       // instead of the live camera's keeps the cap the same size on a laptop and on a
+                       // portrait/4:3 phone (see the calibration note below).
   pitchGate: 0.12,     // |pitch| (radians) below which a frame counts as "frontal" for learning
   ema: 0.05,           // how fast the learned ratio tracks (0 = frozen, 1 = instant but jittery)
   tolerance: 0.15,     // outlier guard: ignore a calibration frame whose ratio is >15% off the
@@ -53,7 +57,7 @@ if (typeof window !== 'undefined') window.capSize = capSize;
 
 let restCalibrated = false;
 
-export function computeCapTransform(lm, matrix) {
+export function computeCapTransform(lm, matrix, vw = 0, vh = 0) {
   if (!lm) return null;
 
   const top = lm[IDX.foreheadTop];
@@ -61,12 +65,27 @@ export function computeCapTransform(lm, matrix) {
   const er = lm[IDX.eyeOuterRight];
   const el = lm[IDX.eyeOuterLeft];
 
-  const roll = Math.atan2(el.y - er.y, el.x - er.x);
+  // MediaPipe landmark coords are normalized PER AXIS — x by frame WIDTH, y by frame HEIGHT — so on
+  // a non-square frame they're aspect-distorted: the same physical length measures differently
+  // depending on its direction. Every geometric quantity we derive from them (the roll ANGLE and the
+  // eye-span LENGTH that sets the cap size) is then wrong unless the frame is square — and wrong in
+  // OPPOSITE directions on a landscape laptop vs a portrait phone/iPad. Fix it once: put y in the
+  // same units as x (multiples of frame WIDTH) so the axes are isotropic. With no known frame size
+  // aspy = 1 — the legacy raw-normalized behaviour. Everything downstream stays in width units, so
+  // drawCap's `* vw` still lands the cap in pixels.
+  const aspy = vw > 0 && vh > 0 ? vh / vw : 1;
 
-  // Eye span (local-X axis): immune to nodding; foreshortens only on a turn (corrected below).
-  const eyeSpan2D = Math.hypot(el.x - er.x, el.y - er.y);
+  // Roll: TRUE on-screen tilt of the eye line. In width units the angle matches what's drawn; raw
+  // normalized y under-rotates the cap on a portrait phone/iPad ("doesn't tilt enough") and
+  // over-rotates it on a landscape laptop.
+  const roll = Math.atan2((el.y - er.y) * aspy, el.x - er.x);
+
+  // Eye span (local-X axis): immune to nodding; foreshortens only on a turn (corrected below). In
+  // width units it's also ROLL-invariant — tilting the head no longer changes its length, which used
+  // to grow the cap on a landscape laptop (and shrink it on a portrait phone) as you tilt.
+  const eyeSpan2D = Math.hypot(el.x - er.x, (el.y - er.y) * aspy);
   // Forehead<->chin span: used ONLY to calibrate the resting size ratio when near-frontal.
-  const faceSpan2D = Math.hypot(top.x - chin.x, top.y - chin.y);
+  const faceSpan2D = Math.hypot(top.x - chin.x, (top.y - chin.y) * aspy);
 
   // Head pivot: midpoint between the eyes (central + stable under rotation).
   const refX = (er.x + el.x) / 2;
@@ -99,7 +118,13 @@ export function computeCapTransform(lm, matrix) {
   // small). Snap on the first good frame for an instantly-correct size, then track slowly. The
   // ratio is distance-invariant (both spans scale together), so leaning in/out doesn't disturb it.
   if (capSize.autoCalibrate && eyeSize > 1e-4 && Math.abs(pitch) < capSize.pitchGate && Math.abs(yaw) < 0.5) {
-    const ratio = faceSpan2D / eyeSize;
+    // Both spans are now in aspect-corrected width units (see aspy above), so their ratio is the pure
+    // facial geometry (forehead-chin / eye span) — independent of the camera's aspect. refAspect
+    // rescales that to the value the cap was tuned on (a 16:9 webcam), so every device — landscape
+    // laptop or portrait phone — learns the SAME ratio and the cap is the same size. With the frame
+    // size still unknown the spans are raw-normalized, so fall back to the legacy estimate (no
+    // refAspect, which would otherwise double-count the aspect).
+    const ratio = vw > 0 && vh > 0 ? (faceSpan2D / eyeSize) * capSize.refAspect : faceSpan2D / eyeSize;
     if (ratio > 1.2 && ratio < 4.5) {
       if (!restCalibrated) {
         capSize.ratio = ratio; // first frontal frame: snap to a correct size immediately

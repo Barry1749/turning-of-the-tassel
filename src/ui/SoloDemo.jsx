@@ -63,7 +63,7 @@ export default function SoloDemo({ onBack }) {
 
       const faceLm = faceRes?.faceLandmarks?.[0] || null;
       const handLm = handRes?.landmarks?.[0] || null;
-      const cap = computeCapTransform(faceLm, faceRes?.facialTransformationMatrixes?.[0]?.data || null);
+      const cap = computeCapTransform(faceLm, faceRes?.facialTransformationMatrixes?.[0]?.data || null, video.videoWidth, video.videoHeight);
       const g = s.gesture.update(handLm);
 
       const dt = Math.min(0.05, s.lastNow ? (now - s.lastNow) / 1000 : 0.016);
