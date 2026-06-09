@@ -498,10 +498,6 @@ button.link {
   cursor: pointer;
   flex: 1;
 }
-/* professors aren't spotlighted, so their name isn't clickable */
-.mc-roster .r-name.r-static {
-  cursor: default;
-}
 .mc-roster .r-empty {
   justify-content: center;
   opacity: 0.5;

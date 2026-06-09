@@ -393,8 +393,10 @@ export default function MCPanel({
               <ol className="mc-roster mc-roster-profs">
                 {professors.length === 0 && <li className="r-empty">No professors yet</li>}
                 {professors.map((p) => (
-                  <li key={p.id}>
-                    <span className="r-name r-static">🎓 {p.name}</span>
+                  <li key={p.id} className={p.id === cstate.currentProfessorId ? 'cur' : ''}>
+                    <span className="r-name" onClick={() => actions.selectProfessor(p.id)} title="Spotlight this professor">
+                      🎓 {p.name}
+                    </span>
                     <span className="r-actions">
                       <button onClick={() => copyLink(p.id, joinLink(p.token))} title="Copy this professor's personal join link">
                         {copied === p.id ? '✓' : '🔗'}

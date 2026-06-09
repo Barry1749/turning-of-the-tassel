@@ -5,8 +5,8 @@ import { REST_ANGLE } from '../tassel';
 // keeps its own in-tile name/role caption; there's no extra chrome around the tiles.
 export default function Spotlight({ cstate, participants, myId, selfStream, selfCanvas, remote, tasselRef }) {
   const roster = cstate.roster || [];
+  const professors = cstate.professors || [];
   const current = roster.find((s) => s.id === cstate.currentId) || null;
-  const host = participants.find((p) => p.role === 'host' || p.role === 'professor') || null;
 
   const streamFor = (p) => {
     if (!p) return null;
@@ -14,6 +14,14 @@ export default function Spotlight({ cstate, participants, myId, selfStream, self
   };
   const participantByName = (n) =>
     participants.find((p) => p.name.toLowerCase() === (n || '').toLowerCase()) || null;
+
+  // The professor on screen is whichever one the MC has spotlighted. With none selected (e.g. no
+  // named professors yet) fall back to the first connected professor/host so the tile isn't empty.
+  const currentProf = professors.find((p) => p.id === cstate.currentProfessorId) || null;
+  const host = currentProf
+    ? participantByName(currentProf.name)
+    : participants.find((p) => p.role === 'host' || p.role === 'professor') || null;
+  const hostName = currentProf?.name || host?.name || 'Professor';
 
   const studentP = current ? participantByName(current.name) : null;
 
@@ -25,7 +33,7 @@ export default function Spotlight({ cstate, participants, myId, selfStream, self
             big
             stream={streamFor(host)}
             selfCanvas={host?.id === myId ? selfCanvas : null}
-            name={host?.name || 'Professor'}
+            name={hostName}
             role="host"
             isSelf={host?.id === myId}
             getAngle={() => REST_ANGLE}

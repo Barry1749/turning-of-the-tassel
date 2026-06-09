@@ -36,6 +36,7 @@ const state = {
   roster: SAMPLE_ROSTER,
   professors: [], // people who turn the tassel; the MC can add them + share join links
   currentId: null, // spotlighted student
+  currentProfessorId: null, // spotlighted professor (the one shown turning the tassel)
   tassel: { angle: REST_ANGLE, engaged: false },
   countdown: null,
   title: 'Turning of the Tassel', // editable ceremony title shown in the top bar (set by the MC)
@@ -244,6 +245,9 @@ wss.on('connection', (ws) => {
           const first = state.roster.find((s) => !s.turned) || state.roster[0];
           state.currentId = first ? first.id : null;
         }
+        if (state.mode === 'ceremony' && !state.currentProfessorId) {
+          state.currentProfessorId = state.professors[0]?.id || null;
+        }
         state.tassel = { angle: REST_ANGLE, engaged: false };
         broadcastState();
         break;
@@ -253,6 +257,15 @@ wss.on('connection', (ws) => {
         if (state.roster.some((s) => s.id === msg.id)) {
           state.currentId = msg.id;
           state.tassel = { angle: REST_ANGLE, engaged: false };
+          broadcastState();
+        }
+        break;
+      // Spotlight a different professor. Independent of the student/tassel — switching who's
+      // shown turning the tassel doesn't change which student is up, so the tassel isn't reset.
+      case 'selectProfessor':
+        if (!isHost(me)) break;
+        if (state.professors.some((p) => p.id === msg.id)) {
+          state.currentProfessorId = msg.id;
           broadcastState();
         }
         break;
@@ -320,6 +333,7 @@ wss.on('connection', (ws) => {
       case 'removeProfessor':
         if (!isHost(me)) break;
         state.professors = state.professors.filter((p) => p.id !== msg.id);
+        if (state.currentProfessorId === msg.id) state.currentProfessorId = null;
         broadcastState();
         break;
       // Bulk import from the MC's CSV: one atomic message instead of N add* messages
@@ -399,6 +413,7 @@ wss.on('connection', (ws) => {
         });
         state.mode = 'normal';
         state.currentId = null;
+        state.currentProfessorId = null;
         state.tassel = { angle: REST_ANGLE, engaged: false };
         state.countdown = null;
         clearInterval(countdownTimer);
