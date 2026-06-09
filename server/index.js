@@ -40,7 +40,12 @@ const state = {
   countdown: null,
   title: 'Turning of the Tassel', // editable ceremony title shown in the top bar (set by the MC)
   guestToken: newToken(), // one shared watch-only link for guests
+  videoMode: 'p2p', // 'p2p' | 'livekit' — chosen here from the headcount so every client agrees
 };
+
+// LiveKit can only act as the SFU fallback if its credentials are configured (the /token
+// endpoint below needs them to sign joins); otherwise we stay on the P2P mesh whatever the count.
+const liveKitConfigured = !!(process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET);
 
 const clients = new Map(); // ws -> { id, role, name }
 
@@ -135,6 +140,24 @@ function broadcastState() {
 function broadcastParticipants() {
   broadcast({ type: 'participants', participants: participantList() });
 }
+
+// Server-authoritative video transport. Picking it here (not per-client) means every client
+// flips together — no split-brain where some sit on the P2P mesh and others on the SFU and the
+// two groups can't see each other. Hysteresis: climb to LiveKit once the headcount passes the
+// mesh's comfort limit, but only fall back to P2P at one below it, so a participant hovering on
+// the boundary (flaky wifi rejoining) can't thrash the whole room between transports. Counts
+// everyone — students, professor, MC, guests. Returns true if the mode actually changed.
+const MESH_MAX = 6; // the P2P mesh comfortably carries up to this many participants
+function updateVideoMode() {
+  if (!liveKitConfigured) return false; // no SFU available → stay on P2P regardless of count
+  const n = participantList().length;
+  let next = state.videoMode;
+  if (n > MESH_MAX) next = 'livekit';
+  else if (n < MESH_MAX) next = 'p2p';
+  if (next === state.videoMode) return false;
+  state.videoMode = next;
+  return true;
+}
 function sendToId(targetId, obj) {
   for (const [ws, m] of clients) {
     if (m.id === targetId) {
@@ -207,6 +230,7 @@ wss.on('connection', (ws) => {
         me.role = who.role;
         me.name = who.name;
         send(ws, { type: 'welcome', id: me.id, role: me.role, name: me.name, state: stateFor(me.role) });
+        updateVideoMode(); // this join may push the room past the mesh limit; state goes out next
         broadcastParticipants();
         broadcastState();
         break;
@@ -385,6 +409,7 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     clients.delete(ws);
     broadcastParticipants();
+    if (updateVideoMode()) broadcastState(); // a departure may drop us back under the mesh limit
   });
 });
 
@@ -404,7 +429,10 @@ const heartbeatTimer = setInterval(() => {
     ws.isAlive = false;
     ws.ping();
   }
-  if (reaped) broadcastParticipants();
+  if (reaped) {
+    broadcastParticipants();
+    if (updateVideoMode()) broadcastState(); // reaping zombies can drop us back under the limit
+  }
 }, HEARTBEAT_MS);
 wss.on('close', () => clearInterval(heartbeatTimer));
 

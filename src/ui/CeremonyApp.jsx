@@ -69,11 +69,16 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     name,
   });
 
-  // Video transport: LiveKit (SFU) when configured, else Daily if a room URL is set,
-  // else the built-in P2P mesh. Switching is just env vars; the rest of the app is the same.
+  // Video transport. When LiveKit (SFU) is configured we run a HYBRID: default to the free P2P
+  // mesh and let the SERVER promote the whole room to LiveKit once the headcount outgrows the mesh
+  // (cstate.videoMode is server-authoritative, so every client flips together — no split-brain).
+  // With no LiveKit configured we keep the original behaviour: Daily if a room URL is set, else
+  // pure P2P. The hooks below are always mounted; only `enabled` flips, so the active one connects
+  // and the other tears down at the switch.
   const liveKitUrl = import.meta.env.VITE_LIVEKIT_URL;
-  const liveKitEnabled = !!liveKitUrl;
-  const dailyEnabled = !liveKitEnabled && !!roomUrl;
+  const liveKitConfigured = !!liveKitUrl;
+  const dailyEnabled = !liveKitConfigured && !!roomUrl;
+  const liveKitEnabled = liveKitConfigured && cstate?.videoMode === 'livekit';
   const p2pEnabled = !liveKitEnabled && !dailyEnabled;
 
   // Publish the un-mirrored composite so remote peers see the real image; our own tile keeps
