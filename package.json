@@ -10,7 +10,9 @@
     "dev:share": "concurrently -n web,api,tunnel -c cyan,magenta,green \"npm run dev\" \"npm run server\" \"npm run share\"",
     "share": "node scripts/share.mjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prod": "npm run build && concurrently -n api,web -c magenta,cyan \"npm run server\" \"npm run preview\"",
+    "prod:share": "npm run build && concurrently -n api,web,tunnel -c magenta,cyan,green \"npm run server\" \"npm run preview\" \"node scripts/share.mjs 4173\""
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.90.0",

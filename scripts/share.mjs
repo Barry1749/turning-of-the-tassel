@@ -11,7 +11,10 @@ import { spawn } from 'node:child_process';
 let printed = false;
 const procs = [];
 
-const p = spawn('cloudflared', ['tunnel', '--url', 'http://localhost:5173'], { shell: true });
+// Which local port to expose. Defaults to the dev server (5173); pass another port
+// (e.g. `node scripts/share.mjs 4173`) to tunnel the `vite preview` release build instead.
+const port = process.argv[2] || '5173';
+const p = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`], { shell: true });
 procs.push(p);
 
 const onData = (buf) => {
@@ -25,7 +28,7 @@ const onData = (buf) => {
     console.log(' link — anyone who opens it becomes the host. To invite people,');
     console.log(' use the per-person link buttons in the MC panel to copy each');
     console.log(' guest / student / professor their own ?t=… link.\n');
-    console.log(' Keep this window AND your `npm run dev:all` window open.');
+    console.log(' Keep the web + api servers running while this tunnel is up.');
     console.log(' (The link changes each time you restart this.)');
     console.log('============================================================\n');
   }
@@ -37,7 +40,7 @@ p.on('error', (e) => {
   console.error('Install it with:  winget install --id Cloudflare.cloudflared');
 });
 
-console.log('Starting tunnel — make sure `npm run dev:all` is running.');
+console.log(`Starting tunnel for http://localhost:${port} — make sure the web server is running.`);
 console.log('This takes ~5–10 seconds…');
 
 function shutdown() {
