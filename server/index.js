@@ -379,6 +379,10 @@ wss.on('connection', (ws) => {
         const s = state.roster.find((x) => x.id === (msg.id || state.currentId));
         if (s) s.turned = false;
         broadcast({ type: 'tassel', angle: REST_ANGLE, engaged: false, studentId: state.currentId });
+        // Tell the camera host (professor) to reset its LOCAL controller. Its ~25Hz angle stream
+        // sits at the committed angle after a turn and would re-assert it within ~40ms, undoing
+        // this reset — usually the reset is clicked from the MC console, not the professor's.
+        broadcast({ type: 'event', event: 'resetTassel' });
         broadcastState();
         break;
       }

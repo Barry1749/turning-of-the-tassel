@@ -104,6 +104,11 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
       const t = setTimeout(() => setBanner(null), 4200);
       return () => clearTimeout(t);
     }
+    if (ev?.event === 'resetTassel') {
+      // Reset OUR controller — only the professor has a live one, and its stream is what would
+      // otherwise re-assert the committed angle over the server's reset.
+      if (isProfessor) resetGesture();
+    }
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventTick]);
