@@ -339,50 +339,31 @@ button.link {
 .spotlight {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 18px;
+  padding: 12px;
   background: radial-gradient(circle at 50% 40%, #1a1d46, #070813);
 }
 .spot-tiles {
   display: flex;
-  align-items: center;
-  gap: 18px;
+  align-items: stretch;
+  gap: 12px;
   width: 100%;
-  max-width: 1200px;
+  height: 100%;
 }
 .spot-col {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
+/* The spotlight tiles fill the stage (no fixed aspect): the video/name-card uses
+   object-fit: cover, so it crops to fill rather than letterboxing. */
 .spot-col .tile.big {
-  aspect-ratio: 4 / 3;
-}
-.spot-label {
-  text-align: center;
-  opacity: 0.7;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.8rem;
-}
-.spot-vs {
-  opacity: 0.6;
-  font-style: italic;
-  white-space: nowrap;
-  align-self: center;
-}
-.spot-caption {
-  text-align: center;
-}
-.spot-name {
-  font-size: 1.5rem;
-  font-weight: 800;
-}
-.spot-sub {
-  opacity: 0.75;
-  margin-top: 2px;
+  flex: 1;
+  min-height: 0;
+  aspect-ratio: auto;
 }
 
 /* ---------- MC panel ---------- */
@@ -813,10 +794,15 @@ button.link {
   font-size: 0.85rem;
 }
 
-@media (max-width: 720px) {
+/* Stack the two ceremony tiles vertically on phones and upright tablets (iPads held in
+   portrait), and on any very narrow screen. Landscape desktops/tablets keep them side by side. */
+@media (orientation: portrait), (max-width: 720px) {
   .spot-tiles {
     flex-direction: column;
   }
+}
+
+@media (max-width: 720px) {
   .mc {
     width: calc(100vw - 24px);
   }

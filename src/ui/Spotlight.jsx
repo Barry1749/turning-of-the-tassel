@@ -1,8 +1,8 @@
 import ParticipantTile from './ParticipantTile';
 import { REST_ANGLE } from '../tassel';
 
-// Ceremony mode: zoom to the professor + the current student, with the ceremony title
-// caption (set by the MC).
+// Ceremony mode: a clean two-up of just the professor + the current student. Each video
+// keeps its own in-tile name/role caption; there's no extra chrome around the tiles.
 export default function Spotlight({ cstate, participants, myId, selfStream, selfCanvas, remote, tasselRef }) {
   const roster = cstate.roster || [];
   const current = roster.find((s) => s.id === cstate.currentId) || null;
@@ -30,10 +30,7 @@ export default function Spotlight({ cstate, participants, myId, selfStream, self
             isSelf={host?.id === myId}
             getAngle={() => REST_ANGLE}
           />
-          <div className="spot-label">Professor</div>
         </div>
-
-        <div className="spot-vs">turning the tassel of</div>
 
         <div className="spot-col">
           <ParticipantTile
@@ -48,12 +45,6 @@ export default function Spotlight({ cstate, participants, myId, selfStream, self
             degree={current?.degree}
             getAngle={() => tasselRef.current.angle}
           />
-          {current && (
-            <div className="spot-caption">
-              <div className="spot-name">{current.name}</div>
-              {cstate.title && <div className="spot-sub">{cstate.title}</div>}
-            </div>
-          )}
         </div>
       </div>
     </div>
