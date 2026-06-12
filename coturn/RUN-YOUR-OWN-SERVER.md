@@ -122,8 +122,11 @@ test box above — then restart the ceremony.
 
 ## Running costs & upkeep
 
-- **Keep the server running** during ceremonies; between events you can stop it (on AWS, attach an
-  *Elastic IP* first so the address doesn't change when you start it again).
+- **Keep the server running** during ceremonies; between events you can stop it. ⚠ On AWS the
+  public IP **changes on every stop/start** — and it's baked into coturn's own config too, so a
+  changed IP breaks the relay even if the app is told about it. Either attach an **Elastic IP**
+  (permanent address, ~$3.6/month) or install the **auto-refresh boot service** — both are in
+  [AWS-setup.md](AWS-setup.md) section B. Most non-AWS VPSes have a static IP and don't need this.
 - Bandwidth: a relayed participant uses roughly 1 GB/hour. AWS free tier includes 100 GB/month —
   dozens of ceremony-hours.
 - Change the password anytime: edit `user=` in `~/coturn/turnserver.conf` on the server, then

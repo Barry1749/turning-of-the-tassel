@@ -27,11 +27,61 @@ a TURN relay. You launch one tiny Ubuntu server, open the right ports, and run t
    ⚠️ The **49152–65535 UDP** range is the one everyone forgets — without it the relay can't carry media.
 8. **Storage:** default (8 GB) is fine. **Launch instance.**
 
-## B. (Recommended) Give it a fixed IP
-The auto-assigned public IP changes if you stop/start the instance — annoying, since the app bakes the
-IP in. For a permanent address: **EC2 → Elastic IPs → Allocate**, then **Actions → Associate** → your
-instance. (Free tier covers one *in-use* public IPv4 for 12 months. Don't leave an Elastic IP allocated
-but *un*-associated — an idle one is billed.)
+## B. (Recommended) Give it a fixed IP — Elastic IP
+
+The auto-assigned public IP **changes on every stop/start**, and the IP lives in TWO places — the
+app's relay config AND coturn's own `external-ip` line — so a changed IP silently breaks the relay.
+An Elastic IP makes the address permanent so stop/start never breaks anything:
+
+1. **EC2 → Network & Security → Elastic IPs → Allocate Elastic IP address** → keep the defaults
+   (Amazon's pool, your region) → **Allocate**.
+2. Select the new address → **Actions → Associate Elastic IP address** → Resource type **Instance**
+   → pick your relay instance → **Associate**.
+3. ⚠ Associating **replaces** the instance's current public IP immediately (the old auto-assigned
+   one is gone for good — an open EC2-Instance-Connect tab may drop; just reconnect). So do a
+   one-time fixup of both IP locations: run step D's config refresh (or the auto-refresh service
+   below, which handles it in one line), and put the new IP in the app (step E.2).
+4. Cost: a public IPv4 bills ~US$3.6/month (credits cover it). If you ever **terminate** the
+   instance, also **Release** the Elastic IP — an allocated-but-unused one keeps billing.
+
+### No Elastic IP? Install the auto-refresh service instead
+Without a fixed IP, make the relay re-detect its address **on every boot** — otherwise coturn keeps
+advertising the previous boot's IP and the relay breaks even if the app is told the new one. Paste
+this once on the server:
+
+```bash
+sudo tee /usr/local/bin/coturn-refresh-ip.sh >/dev/null <<'EOF'
+#!/bin/bash
+# The public IP changes on every stop/start (no Elastic IP). Rewrite coturn's
+# external-ip from EC2 metadata and restart the relay so it advertises the current one.
+set -e
+T=$(curl -s -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 120")
+PUB=$(curl -s -H "X-aws-ec2-metadata-token: $T" http://169.254.169.254/latest/meta-data/public-ipv4)
+PRIV=$(curl -s -H "X-aws-ec2-metadata-token: $T" http://169.254.169.254/latest/meta-data/local-ipv4)
+[ -n "$PUB" ] || exit 0
+sed -i "s|^external-ip=.*|external-ip=$PUB/$PRIV|" /home/ubuntu/coturn/turnserver.conf
+cd /home/ubuntu/coturn && docker compose up -d --force-recreate
+EOF
+sudo chmod +x /usr/local/bin/coturn-refresh-ip.sh
+sudo tee /etc/systemd/system/coturn-refresh-ip.service >/dev/null <<'EOF'
+[Unit]
+Description=Point coturn at this boot's public IP
+After=docker.service network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/coturn-refresh-ip.sh
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload && sudo systemctl enable coturn-refresh-ip.service
+sudo /usr/local/bin/coturn-refresh-ip.sh && grep external-ip /home/ubuntu/coturn/turnserver.conf
+```
+
+The relay then always advertises the right address — but the APP still needs the new IP after each
+restart: the MC enters it in the panel's **Video relay** section (participants follow automatically).
+With an Elastic IP none of that is ever needed. (The service is harmless to keep with an Elastic IP
+too — the address simply never changes again.)
 
 ## C. Connect to the server
 - **Easiest:** EC2 → select the instance → **Connect → EC2 Instance Connect → Connect** (browser terminal, no key needed).
