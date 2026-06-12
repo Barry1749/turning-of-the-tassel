@@ -1,0 +1,14 @@
+# Run your own STUN/TURN relay:   docker compose up -d
+#
+# Linux VPS. coturn relays media over a wide UDP port range, so HOST networking is the simplest
+# correct setup (no need to map hundreds of ports). Linux only — host networking is a no-op on
+# Docker Desktop for Mac/Windows, which is fine because the relay belongs on the public VPS anyway.
+services:
+  coturn:
+    image: coturn/coturn:latest
+    container_name: tassel-coturn
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]

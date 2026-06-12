@@ -2,18 +2,55 @@
 // Each on-camera participant connects to every other on-camera participant; guests
 // connect to on-camera participants to watch. No third-party service / account.
 //
-// Notes: STUN handles most home networks; a free public TURN relay is included for
-// restrictive networks (best-effort). Mesh suits a small on-camera group.
+// Notes: STUN handles most home networks; restrictive / symmetric-NAT networks need a TURN relay,
+// configured via env (see .env.example) — the old bundled free relay is dead. Mesh suits a small
+// on-camera group.
 import { useEffect, useRef, useState } from 'react';
 import { qualitySpec, DEFAULT_QUALITY } from './videoQuality';
 
-const ICE_SERVERS = [
+// STUN is free and account-less; it suffices when at least one peer is behind a friendly (cone)
+// NAT. But when a peer is behind a SYMMETRIC NAT (common on mobile / carrier-grade NAT / many
+// campus + ISP networks) STUN can't help and the media MUST be relayed through a TURN server.
+// The old bundled free relay (openrelay.metered.ca) is dead — it now hands back zero relay
+// candidates — so TURN is brought in from the environment: use a free metered.ca tier,
+// Cloudflare/Twilio, or self-hosted coturn. See .env.example for the exact vars.
+const STUN_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
 ];
+
+// Read TURN servers from the build-time env, accepting two forms (first one present wins):
+//   1) VITE_ICE_SERVERS — a JSON array of RTCIceServer objects (paste your provider's whole list).
+//   2) VITE_TURN_URLS (comma/space-separated) + VITE_TURN_USERNAME + VITE_TURN_CREDENTIAL.
+// With neither set the app runs STUN-only: fine on friendly NATs, but symmetric-NAT peers can't
+// connect across the internet (you'd see "P2P 0").
+function turnFromEnv() {
+  const raw = import.meta.env.VITE_ICE_SERVERS;
+  if (raw) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) return arr;
+    } catch {
+      console.warn('[p2p] VITE_ICE_SERVERS is not valid JSON — ignoring it');
+    }
+  }
+  const urls = (import.meta.env.VITE_TURN_URLS || import.meta.env.VITE_TURN_URL || '')
+    .split(/[,\s]+/)
+    .filter(Boolean);
+  const username = import.meta.env.VITE_TURN_USERNAME;
+  const credential = import.meta.env.VITE_TURN_CREDENTIAL;
+  if (urls.length && username && credential) return [{ urls, username, credential }];
+  return [];
+}
+
+const TURN_SERVERS = turnFromEnv();
+const ICE_SERVERS = [...STUN_SERVERS, ...TURN_SERVERS];
+if (!TURN_SERVERS.length) {
+  console.warn(
+    '[p2p] No TURN relay configured (set VITE_TURN_* or VITE_ICE_SERVERS — see .env.example). ' +
+      'Participants behind a symmetric NAT will fail to connect across the internet.',
+  );
+}
 
 const ON_CAMERA = ['student', 'professor', 'host'];
 const onCam = (role) => ON_CAMERA.includes(role);
@@ -41,7 +78,7 @@ async function tuneVideoSender(sender, maxBitrate) {
 
 export function useP2P({ enabled, myId, myRole, participants, selfStream, send, signalRef, quality = DEFAULT_QUALITY }) {
   const [remote, setRemote] = useState({}); // peerId -> { stream }
-  const S = useRef({ pcs: {}, senders: {}, pending: {} });
+  const S = useRef({ pcs: {}, senders: {}, pending: {}, born: {}, synth: {} });
   const ctx = useRef({});
   ctx.current = { myId, myRole, selfStream, send, quality };
 
@@ -57,6 +94,13 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
 
   function cleanupPeer(peerId) {
     const pc = S.current.pcs[peerId];
+    // Unregister BEFORE closing: close() fires connectionstatechange('closed'), and the handler
+    // uses "am I still the tracked pc?" to tell an intentional teardown from a real failure.
+    delete S.current.pcs[peerId];
+    delete S.current.senders[peerId];
+    delete S.current.pending[peerId];
+    delete S.current.born[peerId];
+    delete S.current.synth[peerId];
     if (pc) {
       try {
         pc.close();
@@ -64,9 +108,6 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
         /* ignore */
       }
     }
-    delete S.current.pcs[peerId];
-    delete S.current.senders[peerId];
-    delete S.current.pending[peerId];
     setRemote((r) => {
       if (!r[peerId]) return r;
       const n = { ...r };
@@ -78,16 +119,29 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
   function makePc(peerId) {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     S.current.pcs[peerId] = pc;
+    S.current.born[peerId] = Date.now(); // for the stuck-connection check in the reconcile tick
     pc.onicecandidate = (e) => {
       if (e.candidate) ctx.current.send({ type: 'signal', to: peerId, data: { candidate: e.candidate.toJSON() } });
     };
     pc.ontrack = (e) => {
-      const stream = e.streams[0];
-      if (!stream) return;
+      // Tracks are attached with replaceTrack() on bare transceivers, so they arrive with NO
+      // stream association (e.streams is empty) — never discard them for that. Collect loose
+      // tracks into one synthesized per-peer stream; use the labeled stream when present.
+      let stream = e.streams[0];
+      if (!stream) {
+        stream = S.current.synth[peerId] || (S.current.synth[peerId] = new MediaStream());
+        stream.addTrack(e.track);
+      }
       setRemote((r) => ({ ...r, [peerId]: { stream } }));
     };
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') cleanupPeer(peerId);
+      if (S.current.pcs[peerId] !== pc) return; // already replaced/torn down intentionally
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        cleanupPeer(peerId);
+        // Self-heal: only the lower id sends offers. If the dead link was ours to start, the
+        // reconcile tick below re-initiates; otherwise ask the initiator to start over.
+        if (ctx.current.myId > peerId) ctx.current.send({ type: 'signal', to: peerId, data: { reoffer: true } });
+      }
     };
     return pc;
   }
@@ -110,6 +164,13 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
     try {
       let pc = St.pcs[from];
       if (data.sdp) {
+        // A fresh OFFER while we already hold a pc for this peer means the peer rebuilt its side
+        // (failure recovery). Only the lower id ever sends offers, so this can't collide with an
+        // outstanding offer of our own — replace our stale pc and answer the new one.
+        if (data.sdp.type === 'offer' && pc) {
+          cleanupPeer(from);
+          pc = null;
+        }
         if (!pc) pc = makePc(from);
         await pc.setRemoteDescription(data.sdp);
         // flush any ICE candidates that arrived before the description
@@ -146,6 +207,10 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
         } else {
           (St.pending[from] = St.pending[from] || []).push(data.candidate);
         }
+      } else if (data.reoffer) {
+        // The peer's side of the link died and it can't send offers (higher id) — rebuild ours.
+        if (St.pcs[from]) cleanupPeer(from);
+        if (ctx.current.myId < from) initiate(from);
       }
     } catch (e) {
       console.warn('p2p signal error', e);
@@ -167,6 +232,7 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
     .filter((p) => p.id !== myId && (onCam(p.role) || onCam(myRole)))
     .map((p) => p.id);
   const peerKey = [...peerList].sort().join(',');
+  ctx.current.peerList = peerList; // the reconcile tick below reads the latest roster from here
 
   useEffect(() => {
     if (!enabled || !myId) return undefined;
@@ -181,6 +247,36 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, peerKey, myId]);
+
+  // Self-heal. A dropped link (wifi blip, phone lock, tunnel hiccup) is cleaned up above, but with
+  // an UNCHANGED roster nothing re-initiates — the room would sit at "P2P 0" until someone joins or
+  // leaves. So sweep on a slow tick: re-initiate any wanted-but-missing connection (initiator side),
+  // and rebuild connections stuck mid-negotiation (a lost offer/answer leaves 'new'/'connecting'
+  // forever — WebRTC raises no failure event for those).
+  const STUCK_MS = 15000; // relay negotiation legitimately takes a few seconds; 15s is well past it
+  useEffect(() => {
+    if (!enabled || !myId) return undefined;
+    const tick = setInterval(() => {
+      const now = Date.now();
+      (ctx.current.peerList || []).forEach((id) => {
+        const pc = S.current.pcs[id];
+        if (pc) {
+          const stuck =
+            (pc.connectionState === 'new' || pc.connectionState === 'connecting') &&
+            now - (S.current.born[id] || now) > STUCK_MS;
+          if (!stuck) return;
+          cleanupPeer(id);
+          if (ctx.current.myId > id) {
+            ctx.current.send({ type: 'signal', to: id, data: { reoffer: true } });
+            return;
+          }
+        }
+        if (!S.current.pcs[id] && ctx.current.myId < id) initiate(id);
+      });
+    }, 4000);
+    return () => clearInterval(tick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, myId]);
 
   // push our stream into every connection once it's available
   useEffect(() => {
@@ -210,6 +306,8 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
       store.pcs = {};
       store.senders = {};
       store.pending = {};
+      store.born = {};
+      store.synth = {};
     };
   }, []);
 

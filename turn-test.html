@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video connectivity test — Turning of the Tassel</title>
+<style>
+  body { font: 15px/1.6 system-ui, -apple-system, Segoe UI, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.35rem; margin-bottom: .25rem; }
+  p.sub { color: #555; margin-top: 0; }
+  label { font-weight: 600; display: block; margin: 1rem 0 .3rem; }
+  textarea { width: 100%; box-sizing: border-box; font: 12.5px/1.45 ui-monospace, Consolas, monospace; border: 1px solid #aaa; border-radius: 6px; padding: .55rem; }
+  button { font: inherit; padding: .55rem 1.1rem; border-radius: 8px; border: 1px solid #777; background: #f3f3f3; cursor: pointer; margin-top: .6rem; }
+  button:hover:not(:disabled) { background: #e8e8e8; }
+  button:disabled { opacity: .5; cursor: default; }
+  #verdict { padding: 1rem; border-radius: 10px; margin: 1.1rem 0; font-weight: 600; white-space: pre-wrap; display: none; }
+  #verdict.show { display: block; }
+  .ok   { background: #e6f7e6; border: 1px solid #2e7d32; color: #1b5e20; }
+  .bad  { background: #fdeaea; border: 1px solid #c62828; color: #b71c1c; }
+  .warn { background: #fff7e0; border: 1px solid #f9a825; color: #6b5400; }
+  pre { background: #0f1115; color: #cfe0ff; padding: 1rem; border-radius: 8px; overflow: auto; max-height: 320px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+  <h1>🎓 Video connectivity test (STUN / TURN)</h1>
+  <p class="sub">Checks whether this network can reach the relay servers the ceremony's peer-to-peer video uses.
+     <strong>No camera or microphone is used.</strong> Run it on the machines that were in the failed call —
+     ideally on <em>both</em> ends.</p>
+
+  <label for="servers">Servers to test</label>
+  <textarea id="servers" rows="4"
+    placeholder='Paste a TURN list as a JSON array, then Run.'>[{"urls":"stun:YOUR_VPS_IP:3478"},{"urls":"turn:YOUR_VPS_IP:3478","username":"tassel","credential":"YOUR_TURN_SECRET"},{"urls":"turn:YOUR_VPS_IP:3478?transport=tcp","username":"tassel","credential":"YOUR_TURN_SECRET"}]</textarea>
+
+  <div><button id="run">Run the test</button></div>
+  <div id="verdict"></div>
+  <pre id="log"></pre>
+
+<script>
+// The app's ORIGINAL servers (src/useP2P.js, before the fix) — used when the box is left empty,
+// so this reproduces the failure. Paste your new TURN list in the box to verify a working relay.
+const DEFAULT_ICE = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+];
+// Google STUN always merged in, so a pasted TURN-only list still resolves your public IP.
+const STUN_FALLBACK = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+const logEl = document.getElementById('log');
+const verdictEl = document.getElementById('verdict');
+const runBtn = document.getElementById('run');
+const log = (s) => { logEl.textContent += s + '\n'; };
+
+// Returns { servers, custom }. Custom = the user pasted their own list.
+function currentIceServers() {
+  const raw = document.getElementById('servers').value.trim();
+  if (!raw) return { servers: DEFAULT_ICE, custom: false };
+  try {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr) && arr.length) {
+      const hasStun = arr.some((s) => String(s.urls).includes('stun:'));
+      return { servers: hasStun ? arr : [...STUN_FALLBACK, ...arr], custom: true };
+    }
+  } catch (e) {
+    log('⚠️ The servers box is not valid JSON — falling back to the app default list.\n');
+  }
+  return { servers: DEFAULT_ICE, custom: false };
+}
+
+// Gather ICE candidates under a transport policy. With 'relay' the browser emits ONLY relay
+// candidates, so any candidate at all proves a working TURN. A data channel (no media, no
+// permissions) triggers gathering, so this runs from file:// too.
+function gather(servers, policy, label) {
+  return new Promise((resolve) => {
+    const counts = { host: 0, srflx: 0, relay: 0, prflx: 0 };
+    let done = false;
+    const pc = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: policy });
+    pc.createDataChannel('probe');
+    const finish = () => {
+      if (done) return; done = true;
+      try { pc.close(); } catch (e) { /* ignore */ }
+      log(`[${label}]  host=${counts.host}  srflx/STUN=${counts.srflx}  relay/TURN=${counts.relay}`);
+      log('');
+      resolve(counts);
+    };
+    pc.onicecandidate = (e) => {
+      if (!e.candidate || !e.candidate.candidate) { finish(); return; }
+      const m = /typ (\w+)/.exec(e.candidate.candidate);
+      const typ = m ? m[1] : '?';
+      if (counts[typ] !== undefined) counts[typ]++;
+      log(`[${label}]  ${typ.padEnd(6)} ${e.candidate.candidate}`);
+    };
+    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') finish(); };
+    pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(finish);
+    setTimeout(finish, 12000); // hard stop: dead TURN servers never complete gathering
+  });
+}
+
+runBtn.onclick = async () => {
+  logEl.textContent = '';
+  verdictEl.className = 'show';
+  verdictEl.textContent = 'Testing… this takes up to ~25 seconds (waiting on the relay servers).';
+  runBtn.disabled = true;
+
+  const { servers, custom } = currentIceServers();
+  log((custom ? 'Testing YOUR pasted servers:' : 'Testing the app default (old) servers:'));
+  log(JSON.stringify(servers.map((s) => s.urls)) + '\n');
+
+  const all = await gather(servers, 'all', 'all');
+  const relayOnly = await gather(servers, 'relay', 'relay-only');
+
+  runBtn.disabled = false;
+  const turnWorks = relayOnly.relay > 0 || all.relay > 0;
+  const stunWorks = all.srflx > 0;
+  const who = custom ? 'the servers you pasted' : 'the free relay (openrelay.metered.ca)';
+
+  if (turnWorks) {
+    verdictEl.className = 'show ok';
+    verdictEl.textContent =
+      `✅ TURN RELAY WORKS — ${who} returned relay candidates on this network.\n\n` +
+      (custom
+        ? 'Your credentials are good. Put them in .env.local (VITE_ICE_SERVERS or VITE_TURN_*), ' +
+          'rebuild, and the ceremony video will connect across the internet. Run this on the other ' +
+          "participant's machine too, just to be sure their network reaches it as well."
+        : 'So a dead relay is NOT the cause on THIS machine — test the OTHER end too, or look at ' +
+          'chrome://webrtc-internals during a real call.');
+  } else if (stunWorks) {
+    verdictEl.className = 'show bad';
+    verdictEl.textContent =
+      `❌ TURN RELAY FAILED — zero relay candidates from ${who}, even though STUN works.\n\n` +
+      (custom
+        ? 'These credentials/servers are not handing this network a relay path. Double-check the ' +
+          'username/credential and that you copied the full URL list (including the :443?transport=tcp one).'
+        : 'The free relay is down. When two people both need a relay and it’s dead, the video can’t ' +
+          'connect (you see “P2P 0”) — while the tassel keeps working because it rides the WebSocket.\n\n' +
+          '→ CONFIRMED: the fix is a working TURN relay. Paste your new credentials above and re-run.');
+  } else {
+    verdictEl.className = 'show warn';
+    verdictEl.textContent =
+      '⚠️ No STUN and no TURN candidates were gathered.\n\n' +
+      "This network may be blocking UDP entirely, or you're offline / behind a captive portal. " +
+      'Try again; if it persists you need a TURN relay that works over TCP/443.';
+  }
+};
+</script>
+</body>
+</html>
