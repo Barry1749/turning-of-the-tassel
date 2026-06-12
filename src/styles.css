@@ -268,6 +268,90 @@ button.link {
   border-radius: 999px;
 }
 
+/* ---------- Pinned ("almost full screen", Google-Meet style) ----------
+   One person fills the stage; everyone else drops to a thumbnail filmstrip below. Shared by the
+   gallery and the ceremony two-up. Pinning is local to the viewer (Gallery.jsx / Spotlight.jsx)
+   unless the host has a "spotlight for everyone" set, which pins the same person on every screen. */
+.pinned-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.pin-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.pin-main .tile {
+  flex: 1;
+  min-height: 0;
+  aspect-ratio: auto; /* fill the stage instead of the grid's fixed 4:3 */
+}
+.pin-strip {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  height: 118px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+}
+.pin-strip .tile {
+  flex: 0 0 auto;
+  height: 100%;
+  aspect-ratio: 4 / 3;
+}
+
+/* The pin / unpin control on each tile. Appears on hover (always faintly visible on touch, which
+   has no hover); the active "✕ Unpin" stays lit. Sits opposite the top-right "Tap for sound". */
+.pin-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 6px 10px;
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease;
+  backdrop-filter: blur(6px);
+}
+.tile:hover .pin-btn {
+  opacity: 1;
+}
+.pin-btn:hover {
+  background: rgba(0, 0, 0, 0.72);
+}
+.pin-btn.pinned {
+  opacity: 1;
+  color: #1a1a2e;
+  background: rgba(242, 193, 78, 0.92);
+  border-color: transparent;
+}
+/* Host "spotlight for everyone": a static, non-interactive badge (you can't un-pin it locally). */
+.pin-btn.spotlighted {
+  opacity: 1;
+  cursor: default;
+  color: #16183b;
+  background: #f2c14e;
+  border-color: transparent;
+}
+@media (hover: none) {
+  .pin-btn {
+    opacity: 0.85;
+  }
+}
+
 /* Shown when the browser blocked unmuted autoplay (e.g. a student who auto-joined
    from a link). The video still plays muted; one tap turns the sound on. */
 .unmute-btn {
@@ -608,6 +692,25 @@ button.link {
 .mc-degree-new option {
   color: #000; /* native dropdown list renders on a light background */
 }
+/* "Spotlight for everyone" — host picks who fills every viewer's screen (Meet-style). */
+.mc-spotlight {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.mc-spotlight select {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 7px 6px;
+}
+.mc-spotlight select option {
+  color: #000; /* native dropdown list renders on a light background */
+}
+
 /* CSV import / export — bulk roster tools */
 .mc-csv {
   display: flex;

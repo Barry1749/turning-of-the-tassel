@@ -97,6 +97,7 @@ function toCsv(rows) {
 export default function MCPanel({
   cstate,
   actions,
+  participants = [],
   canEditRoster,
   guestCount,
   isProfessor,
@@ -121,6 +122,12 @@ export default function MCPanel({
   const professors = cstate.professors || [];
   const ceremony = cstate.mode === 'ceremony';
   const current = roster.find((s) => s.id === cstate.currentId) || null;
+
+  // "Spotlight for everyone": people who actually have a video tile (students + professor/host on
+  // camera) are the candidates the host can pin onto every screen. Held by name (matches the tiles).
+  const spotlightCandidates = participants.filter((p) => ['student', 'professor', 'host'].includes(p.role));
+  const spotlightName = cstate.spotlightName || '';
+  const spotlightKnown = spotlightCandidates.some((p) => p.name === spotlightName);
 
   // One add control for everyone: a student gets a degree (→ tassel colour); a professor (who
   // turns the tassel) is the fourth role. Keep newRole after adding so a run of the same role
@@ -349,6 +356,36 @@ export default function MCPanel({
             <button onClick={actions.prev}>◀ Prev</button>
             <button onClick={actions.next}>Next ▶</button>
           </div>
+
+          {canEditRoster && (
+            <>
+              <div className="mc-section">Spotlight for everyone</div>
+              <div className="mc-spotlight">
+                <select
+                  value={spotlightName}
+                  onChange={(e) => actions.setSpotlight(e.target.value || null)}
+                  title="Pin one person big on EVERYONE's screen (overrides each viewer's own pin)"
+                >
+                  <option value="">— off (each viewer picks) —</option>
+                  {spotlightName && !spotlightKnown && (
+                    <option value={spotlightName}>{spotlightName} (offline)</option>
+                  )}
+                  {spotlightCandidates.map((p) => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+                {spotlightName && (
+                  <button
+                    className="mc-reset"
+                    onClick={() => actions.setSpotlight(null)}
+                    title="Stop spotlighting — viewers control their own pin again"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="mc-section">
             Students

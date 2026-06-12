@@ -143,6 +143,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     prev: () => send({ type: 'prev' }),
     select: (id) => send({ type: 'selectStudent', id }),
     selectProfessor: (id) => send({ type: 'selectProfessor', id }),
+    setSpotlight: (name) => send({ type: 'setSpotlight', name }),
     reorderStudents: (ids) => send({ type: 'reorderStudents', ids }),
     addStudent: (s) => send({ type: 'addStudent', ...s }),
     addProfessor: (p) => send({ type: 'addProfessor', ...p }),
@@ -252,6 +253,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
         <MCPanel
           cstate={cstate}
           actions={actions}
+          participants={participants}
           canEditRoster={canEditRoster}
           guestCount={guestCount}
           isProfessor={isProfessor}

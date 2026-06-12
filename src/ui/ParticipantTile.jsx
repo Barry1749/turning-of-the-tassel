@@ -16,6 +16,9 @@ export default function ParticipantTile({
   degree,
   getAngle,
   big,
+  onPin,
+  pinned,
+  spotlighted,
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -101,6 +104,21 @@ export default function ParticipantTile({
       ) : (
         <canvas ref={canvasRef} />
       )}
+      {/* Pin-to-fill (Google-Meet style, local to this viewer): the ⤢ button is the ONLY way to
+          pin, so a stray tap on a tile never resizes it. A host "spotlight for everyone" shows a
+          static badge here instead — local pinning is disabled while that's in force. */}
+      {spotlighted ? (
+        <span className="pin-btn spotlighted" title="Spotlighted by the host — shown on every screen">★ Spotlight</span>
+      ) : onPin ? (
+        <button
+          type="button"
+          className={`pin-btn ${pinned ? 'pinned' : ''}`}
+          onClick={onPin}
+          title={pinned ? 'Unpin — back to the grid' : `Pin ${name} to fill the screen`}
+        >
+          {pinned ? '✕ Unpin' : '⤢'}
+        </button>
+      ) : null}
       {needsUnmute && (
         <button type="button" className="unmute-btn" onClick={enableAudio}>
           🔇 Tap for sound

@@ -54,6 +54,7 @@ const state = {
   title: 'Turning of the Tassel', // editable ceremony title shown in the top bar (set by the MC)
   guestToken: newToken(), // one shared watch-only link for guests
   videoMode: 'p2p', // 'p2p' | 'livekit' — chosen here from the headcount so every client agrees
+  spotlightName: null, // host "spotlight for everyone": pins this person big on every screen (Meet-style)
 };
 
 // LiveKit can only act as the SFU fallback if its credentials are configured (the /token
@@ -273,6 +274,14 @@ wss.on('connection', (ws) => {
         broadcastState();
         break;
       }
+      // Meet-style "spotlight for everyone": the host pins one person big on every screen. Held by
+      // name (stable across reconnects); empty/blank clears it. Independent of the ceremony
+      // currentId — this is the gallery's everyone-sees-the-same-person control.
+      case 'setSpotlight':
+        if (!isHost(me)) break;
+        state.spotlightName = typeof msg.name === 'string' && msg.name.trim() ? msg.name.trim() : null;
+        broadcastState();
+        break;
       case 'selectStudent':
         if (!isHost(me)) break;
         if (state.roster.some((s) => s.id === msg.id)) {
@@ -435,6 +444,7 @@ wss.on('connection', (ws) => {
         state.mode = 'normal';
         state.currentId = null;
         state.currentProfessorId = null;
+        state.spotlightName = null;
         state.tassel = { angle: REST_ANGLE, engaged: false };
         state.countdown = null;
         clearInterval(countdownTimer);
