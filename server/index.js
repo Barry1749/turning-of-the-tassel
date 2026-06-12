@@ -4,6 +4,7 @@
 // over WebSocket. Daily handles the actual video; this server is pure control + sync.
 
 import http from 'node:http';
+import fs from 'node:fs';
 import { randomUUID, randomBytes } from 'node:crypto';
 import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
@@ -14,6 +15,7 @@ dotenv.config();
 
 const PORT = process.env.PORT || 3001;
 const REST_ANGLE = 1.05; // tassel resting on the right (must match the client)
+const HOST_TOKEN_FILE = '.host-token.local'; // server drops the per-restart MC token here for the share script (gitignored via *.local)
 
 // Per-link access tokens: students, professors, and guests enter through an opaque ?t=<token>
 // link the MC shares. The token — not editable URL params — is what tells the server who you are,
@@ -21,6 +23,13 @@ const REST_ANGLE = 1.05; // tassel resting on the right (must match the client)
 // only in memory (like the roster), so they reset when the server restarts. The MC is NOT gated:
 // the bare app URL (no token) is the host console.
 const newToken = () => randomBytes(24).toString('base64url');
+
+// The Master of Ceremony also joins by a secret token now — the bare URL (no token) is locked, NOT
+// the host. This token is random per server start (so it changes on every restart) and lives only
+// in memory, deliberately OUTSIDE `state`, so it can never be serialized to a client. The host gets
+// it from the startup log (and, for the tunnel, the share script prints the full link); they open
+// the app with ?t=<hostToken> to reach the MC console.
+const hostToken = newToken();
 
 // degree drives the tassel colour (bachelor | master | phd); the MC can change it per student.
 const SAMPLE_ROSTER = ['Mei-Ling Chen', 'Wei Kang', 'Sofia Rossi', 'Arjun Patel'].map((name) => ({
@@ -111,10 +120,12 @@ function stripTokens(s) {
 function stateFor(role) {
   return role === 'mc' || role === 'host' ? state : stripTokens(state);
 }
-// Map an access token to who it admits. No token → the MC (host): the bare app URL is the host
-// console. A token names a specific guest / student / professor; an unknown token → null (rejected).
+// Map an access token to who it admits. No token → null (rejected → locked screen): the bare URL is
+// no longer the host. The per-restart hostToken admits the MC; other tokens name a specific guest /
+// student / professor; an unknown token → null (rejected).
 function resolveToken(token) {
-  if (!token) return { role: 'mc', name: 'Master of Ceremony' };
+  if (!token) return null;
+  if (token === hostToken) return { role: 'mc', name: 'Master of Ceremony' };
   if (token === state.guestToken) return { role: 'guest', name: 'Guest' };
   const s = state.roster.find((x) => x.token === token);
   if (s) return { role: 'student', name: s.name };
@@ -135,8 +146,15 @@ function broadcast(obj) {
   for (const ws of clients.keys()) if (ws.readyState === ws.OPEN) ws.send(msg);
 }
 function broadcastState() {
-  // Per client, because the token-bearing state goes only to the MC / host (see stateFor).
-  for (const [ws, m] of clients) send(ws, { type: 'state', state: stateFor(m.role) });
+  // The payload only varies by whether the recipient is the MC/host (gets the token-bearing state)
+  // or anyone else (gets the stripped copy). Serialize each variant ONCE and reuse it for every
+  // client, instead of rebuilding + stripping the whole roster once per recipient.
+  const full = JSON.stringify({ type: 'state', state });
+  const stripped = JSON.stringify({ type: 'state', state: stripTokens(state) });
+  for (const [ws, m] of clients) {
+    if (ws.readyState !== ws.OPEN) continue;
+    ws.send(m.role === 'mc' || m.role === 'host' ? full : stripped);
+  }
 }
 function broadcastParticipants() {
   broadcast({ type: 'participants', participants: participantList() });
@@ -457,6 +475,17 @@ wss.on('close', () => clearInterval(heartbeatTimer));
 
 server.listen(PORT, () => {
   console.log(`Ceremony server listening on http://localhost:${PORT}`);
-  // The MC console is the bare app URL (no token); participants join via the MC's per-person links.
-  console.log('MC console: open the app URL with no token (e.g. http://localhost:5173/).');
+  // The bare URL is now locked; the MC opens a secret per-restart host link. Print it, and drop the
+  // token in a gitignored file so the share script can print the full public tunnel link.
+  console.log('');
+  console.log('  MC host link — open this to run the ceremony:');
+  console.log(`    local:       http://localhost:5173/?t=${hostToken}`);
+  console.log(`    tunnel/prod: append  ?t=${hostToken}  to your app URL`);
+  console.log('  The bare URL (no token) is locked — invite people with the per-person links in the MC panel.');
+  console.log('');
+  try {
+    fs.writeFileSync(HOST_TOKEN_FILE, hostToken);
+  } catch {
+    /* best-effort: the share script then falls back to a token-less tunnel URL + this log */
+  }
 });
