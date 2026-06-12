@@ -1,7 +1,7 @@
 {
   "name": "turning-of-the-tassel-desktop",
   "productName": "Turning of the Tassel",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Desktop app for the Turning of the Tassel ceremony (host or join).",
   "main": "main.js",
@@ -32,6 +32,7 @@
         "to": "repo",
         "filter": [
           "**/*",
+          ".env",
           "!**/node_modules/**",
           "!**/.git/**",
           "!**/.claude/**",
