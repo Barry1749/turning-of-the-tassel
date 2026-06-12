@@ -1,0 +1,65 @@
+{
+  "name": "turning-of-the-tassel-desktop",
+  "productName": "Turning of the Tassel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop app for the Turning of the Tassel ceremony (host or join).",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "org.tassel.ceremony",
+    "productName": "Turning of the Tassel",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**"
+    ],
+    "extraResources": [
+      {
+        "from": "..",
+        "to": "repo",
+        "filter": [
+          "**/*",
+          "!**/node_modules/**",
+          "!**/.git/**",
+          "!**/.claude/**",
+          "!desktop/**",
+          "!dist-ssr/**",
+          "!**/*.local"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.education",
+      "extendInfo": {
+        "NSCameraUsageDescription": "The ceremony shows your camera with a graduation cap during the live video call.",
+        "NSMicrophoneUsageDescription": "The ceremony uses your microphone for the live video call."
+      }
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Education"
+    }
+  }
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Turning of the Tassel</title>
+  <style>
+    :root { --green:#28a745; --red:#dc3545; --bg:#1e1f24; --card:#2a2c33; --fg:#e9ecef; --muted:#9aa0a6; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:22px 26px 6px; }
+    h1 { margin:0; font-size:22px; }
+    .sub { color:var(--muted); font-size:13px; margin-top:4px; }
+    main { padding:14px 26px 26px; display:grid; gap:16px; }
+    .cards { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .card { background:var(--card); border-radius:12px; padding:18px; display:flex; flex-direction:column; gap:12px; }
+    .card h2 { margin:0; font-size:16px; }
+    .card p { margin:0; color:var(--muted); font-size:13px; line-height:1.45; }
+    label { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+    input[type=text]{ width:100%; padding:9px 10px; border-radius:8px; border:1px solid #444; background:#1b1c20; color:var(--fg); font-size:13px; }
+    .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+    button { border:none; border-radius:8px; padding:11px 16px; font-size:14px; font-weight:600; cursor:pointer; color:#fff; }
+    button:disabled { opacity:.5; cursor:default; }
+    .primary { background:var(--green); }
+    .danger { background:var(--red); }
+    .ghost { background:#3a3d45; }
+    .status { background:#15161a; border-radius:10px; padding:12px; font-family: Consolas, monospace; font-size:12px; color:#cfd3d7; white-space:pre-wrap; max-height:150px; overflow:auto; min-height:42px; }
+    .foot { color:var(--muted); font-size:12px; line-height:1.5; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎓 Turning of the Tassel</h1>
+    <div class="sub">Run the ceremony, or join one with your invite link.</div>
+  </header>
+
+  <main>
+    <div class="cards">
+      <!-- HOST -->
+      <section class="card">
+        <h2>Host a ceremony</h2>
+        <p>Start the whole thing on this computer. You'll get a link to share with participants.</p>
+        <div class="row">
+          <label><input type="radio" name="runtime" value="docker" checked /> Docker</label>
+          <label><input type="radio" name="runtime" value="native" /> Native (Node)</label>
+        </div>
+        <label><input type="checkbox" id="local" /> Local only (this computer; no public link)</label>
+        <div class="row">
+          <button class="primary" id="hostBtn">▶ Start hosting</button>
+          <button class="danger" id="stopBtn">■ Stop</button>
+        </div>
+      </section>
+
+      <!-- JOIN -->
+      <section class="card">
+        <h2>Join a ceremony</h2>
+        <p>Paste the personal invite link you were given. Your camera turns on with the graduation cap.</p>
+        <input type="text" id="link" placeholder="https://…trycloudflare.com/?t=…" />
+        <div class="row">
+          <button class="primary" id="joinBtn">Join →</button>
+        </div>
+        <p>On a phone? Just open that link in your browser — no app needed.</p>
+      </section>
+    </div>
+
+    <div class="status" id="status">Idle.</div>
+    <div class="foot">
+      Hosting installs Docker or Node automatically the first time if it's missing (you'll see an admin prompt).
+      Closing the ceremony window returns you here; quitting the app stops a ceremony you're hosting.
+    </div>
+  </main>
+
+  <script src="chooser.js"></script>
+</body>
+</html>

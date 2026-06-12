@@ -232,12 +232,32 @@ export default function MCPanel({
   // One shared watch-only link for guests — its own token, anonymous (guests are counted, not listed).
   const guestLink = () => makeLink({ t: cstate.guestToken });
   const copyLink = async (id, link) => {
+    const flash = (key, ms) => { setCopied(key); setTimeout(() => setCopied((c) => (c === key ? null : c)), ms); };
+    // Try the async Clipboard API, then fall back to a legacy textarea + execCommand copy (works
+    // where the async API is missing or blocked). Never fail silently — show a ⚠ if both fail.
     try {
-      await navigator.clipboard.writeText(link);
-      setCopied(id);
-      setTimeout(() => setCopied((c) => (c === id ? null : c)), 1500);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(link);
+        flash(id, 1500);
+        return;
+      }
+      throw new Error('no clipboard api');
     } catch {
-      /* clipboard blocked */
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = link;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) { flash(id, 1500); return; }
+      } catch {
+        /* fall through to a visible failure */
+      }
+      flash('fail:' + id, 4000);
     }
   };
 
@@ -378,7 +398,7 @@ export default function MCPanel({
                       ⠿
                     </span>
                     <button onClick={() => copyLink(s.id, joinLink(s.token))} title="Copy this student's personal join link">
-                      {copied === s.id ? '✓' : '🔗'}
+                      {copied === s.id ? '✓' : copied === 'fail:' + s.id ? '⚠' : '🔗'}
                     </button>
                     <button onClick={() => actions.removeStudent(s.id)} title="Remove">✕</button>
                   </span>
@@ -399,7 +419,7 @@ export default function MCPanel({
                     </span>
                     <span className="r-actions">
                       <button onClick={() => copyLink(p.id, joinLink(p.token))} title="Copy this professor's personal join link">
-                        {copied === p.id ? '✓' : '🔗'}
+                        {copied === p.id ? '✓' : copied === 'fail:' + p.id ? '⚠' : '🔗'}
                       </button>
                       <button onClick={() => actions.removeProfessor(p.id)} title="Remove">✕</button>
                     </span>
@@ -414,7 +434,7 @@ export default function MCPanel({
                   onClick={() => copyLink('guest', guestLink())}
                   title="Copy the shared watch-only guest link"
                 >
-                  {copied === 'guest' ? '✓ copied' : '🔗 guest link'}
+                  {copied === 'guest' ? '✓ copied' : copied === 'fail:guest' ? '⚠ copy failed' : '🔗 guest link'}
                 </button>
               </div>
             </>
