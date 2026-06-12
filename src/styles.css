@@ -928,3 +928,18 @@ button.link {
     width: calc(100vw - 24px);
   }
 }
+
+/* Video-relay override (MC panel): a folded-away emergency control — section-style summary,
+   stacked inputs. Most ceremonies never open it. */
+.mc-turn summary {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.mc-turn .mc-in,
+.mc-turn .mc-row {
+  margin-top: 6px;
+}

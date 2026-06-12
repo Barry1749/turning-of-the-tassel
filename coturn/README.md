@@ -55,7 +55,11 @@ box, with **your** VPS IP swapped in, and click **Run the test** — you want th
     ]
 
 ## 6. Point the app at your relay
-In the repo-root `.env.local` (one line):
+**No-rebuild way (works mid-ceremony):** in the app's Master-of-Ceremony panel open
+**“Video relay”**, enter the server's public IP + username + password, and click *Use this relay* —
+every participant switches automatically. See [RUN-YOUR-OWN-SERVER.md](RUN-YOUR-OWN-SERVER.md).
+
+**Permanent way:** in the repo-root `.env.local` (one line):
 
     VITE_ICE_SERVERS=[{"urls":"stun:YOUR_VPS_IP:3478"},{"urls":"turn:YOUR_VPS_IP:3478","username":"tassel","credential":"YOUR_TURN_SECRET"},{"urls":"turn:YOUR_VPS_IP:3478?transport=tcp","username":"tassel","credential":"YOUR_TURN_SECRET"}]
 

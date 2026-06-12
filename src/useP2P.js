@@ -44,12 +44,29 @@ function turnFromEnv() {
 }
 
 const TURN_SERVERS = turnFromEnv();
-const ICE_SERVERS = [...STUN_SERVERS, ...TURN_SERVERS];
 if (!TURN_SERVERS.length) {
   console.warn(
     '[p2p] No TURN relay configured (set VITE_TURN_* or VITE_ICE_SERVERS — see .env.example). ' +
       'Participants behind a symmetric NAT will fail to connect across the internet.',
   );
+}
+
+// ICE servers for a new connection. A room-wide override (state.turnServer, set by the MC in the
+// panel when the built-in relay is offline) wins over the env/build default. `host` may carry an
+// explicit :port; otherwise the standard 3478 is assumed, and the same trio every relay setup in
+// coturn/ exposes (stun + turn/udp + turn/tcp) is derived from it.
+function iceServersFor(turn) {
+  if (turn && turn.host) {
+    const hp = turn.host.includes(':') ? turn.host : `${turn.host}:3478`;
+    const auth = { username: turn.username || '', credential: turn.credential || '' };
+    return [
+      ...STUN_SERVERS,
+      { urls: `stun:${hp}` },
+      { urls: `turn:${hp}`, ...auth },
+      { urls: `turn:${hp}?transport=tcp`, ...auth },
+    ];
+  }
+  return [...STUN_SERVERS, ...TURN_SERVERS];
 }
 
 const ON_CAMERA = ['student', 'professor', 'host'];
@@ -76,11 +93,11 @@ async function tuneVideoSender(sender, maxBitrate) {
   }
 }
 
-export function useP2P({ enabled, myId, myRole, participants, selfStream, send, signalRef, quality = DEFAULT_QUALITY }) {
+export function useP2P({ enabled, myId, myRole, participants, selfStream, send, signalRef, quality = DEFAULT_QUALITY, turn = null }) {
   const [remote, setRemote] = useState({}); // peerId -> { stream }
   const S = useRef({ pcs: {}, senders: {}, pending: {}, born: {}, synth: {} });
   const ctx = useRef({});
-  ctx.current = { myId, myRole, selfStream, send, quality };
+  ctx.current = { myId, myRole, selfStream, send, quality, turn };
 
   function attachLocal(peerId) {
     const stream = ctx.current.selfStream;
@@ -117,7 +134,7 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
   }
 
   function makePc(peerId) {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: iceServersFor(ctx.current.turn) });
     S.current.pcs[peerId] = pc;
     S.current.born[peerId] = Date.now(); // for the stuck-connection check in the reconcile tick
     pc.onicecandidate = (e) => {

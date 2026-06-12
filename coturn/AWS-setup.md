@@ -104,7 +104,10 @@ sudo docker compose logs --tail=30        # expect listener lines, no errors
      {"urls":"turn:YOUR_PUBLIC_IP:3478?transport=tcp","username":"tassel","credential":"YOUR_TURN_SECRET"}
    ]
    ```
-2. Put the same list in repo-root `.env.local` as `VITE_ICE_SERVERS=[...]` (one line), then rebuild.
+2. Point the app at it — either enter the IP + username + password in the MC panel's **“Video
+   relay”** section (no rebuild; the whole room switches automatically), or make it permanent by
+   putting the same list in repo-root `.env.local` as `VITE_ICE_SERVERS=[...]` (one line) and
+   rebuilding. See [RUN-YOUR-OWN-SERVER.md](RUN-YOUR-OWN-SERVER.md).
 
 ## Staying inside free tier
 - **Egress:** 100 GB/month free for 12 months — fine for occasional ceremonies.

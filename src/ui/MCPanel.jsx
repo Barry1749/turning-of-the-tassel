@@ -113,6 +113,11 @@ export default function MCPanel({
   const [open, setOpen] = useState(true);
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('bachelor'); // role for the next person added: a degree id (student) or 'professor'
+  // Video-relay override drafts. The committed value lives in cstate.turnServer (room-wide,
+  // server-authoritative); these only hold what the MC is typing until Apply.
+  const [turnHost, setTurnHost] = useState('');
+  const [turnUser, setTurnUser] = useState('');
+  const [turnPass, setTurnPass] = useState('');
   const [copied, setCopied] = useState(null);
   const [dragIndex, setDragIndex] = useState(null); // student row being dragged
   const [overIndex, setOverIndex] = useState(null); // row it's hovering over
@@ -123,6 +128,19 @@ export default function MCPanel({
   const professors = cstate.professors || [];
   const ceremony = cstate.mode === 'ceremony';
   const current = roster.find((s) => s.id === cstate.currentId) || null;
+  const turnActive = cstate.turnServer || null; // the relay override currently in force (null = built-in)
+
+  const applyTurn = () => {
+    const host = turnHost.trim();
+    if (!host) return;
+    actions.setTurnServer({ host, username: turnUser.trim(), credential: turnPass });
+  };
+  const clearTurn = () => {
+    setTurnHost('');
+    setTurnUser('');
+    setTurnPass('');
+    actions.setTurnServer(null);
+  };
 
   // "Spotlight for everyone": people who actually have a video tile (students + professor/host on
   // camera) are the candidates the host can pin onto every screen. Held by name (matches the tiles).
@@ -365,6 +383,49 @@ export default function MCPanel({
                 ))}
               </select>
             </label>
+          )}
+
+          {canEditRoster && (
+            <details className="mc-turn">
+              <summary title="The relay (TURN server) that carries video between participants whose networks can't connect directly">
+                Video relay · {turnActive ? turnActive.host : 'built-in'}
+              </summary>
+              <p className="mc-tip">
+                {turnActive
+                  ? 'Everyone in the room is using this relay. Clear it to go back to the built-in one.'
+                  : 'If nobody can see each other (relay offline), enter another relay server here — every participant switches automatically, no rebuild needed. To run your own: coturn/RUN-YOUR-OWN-SERVER.md.'}
+              </p>
+              <input
+                className="mc-in"
+                placeholder="Relay public IP, e.g. 203.0.113.45"
+                value={turnHost}
+                onChange={(e) => setTurnHost(e.target.value)}
+              />
+              <input
+                className="mc-in"
+                placeholder="Username (e.g. tassel)"
+                value={turnUser}
+                onChange={(e) => setTurnUser(e.target.value)}
+              />
+              <input
+                className="mc-in"
+                type="password"
+                placeholder="Password"
+                value={turnPass}
+                onChange={(e) => setTurnPass(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyTurn()}
+              />
+              <div className="mc-row">
+                <button onClick={applyTurn} disabled={!turnHost.trim()} title="Switch the whole room to this relay">
+                  Use this relay
+                </button>
+                {turnActive && (
+                  <button onClick={clearTurn} title="Back to the relay built into the app">
+                    ↺ Built-in
+                  </button>
+                )}
+              </div>
+            </details>
           )}
 
           <div className="mc-row">

@@ -91,7 +91,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
   // Hold off connecting any transport until the server has told us who we are.
   const lk = useLiveKit({ enabled: liveKitEnabled && identified, url: liveKitUrl, identity: myId, name, selfStream: publishStream });
   const daily = useDaily({ roomUrl: dailyEnabled && identified ? roomUrl : '', name, selfStream: publishStream });
-  const p2p = useP2P({ enabled: p2pEnabled && identified, myId, myRole: role, participants, selfStream: publishStream, send, signalRef, quality: videoQuality });
+  const p2p = useP2P({ enabled: p2pEnabled && identified, myId, myRole: role, participants, selfStream: publishStream, send, signalRef, quality: videoQuality, turn: cstate?.turnServer || null });
 
   const video = liveKitEnabled ? lk : dailyEnabled ? daily : p2p;
   const remote = video.remote;
@@ -154,6 +154,8 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     addProfessor: (p) => send({ type: 'addProfessor', ...p }),
     setTitle: (title) => send({ type: 'setTitle', title }),
     setVideoQuality: (q) => send({ type: 'setVideoQuality', quality: q }),
+    // Room-wide TURN relay override; null/empty host = back to the build's default relay.
+    setTurnServer: (cfg) => send({ type: 'setTurnServer', ...(cfg || { host: '' }) }),
     setDegree: (id, degree) => send({ type: 'updateStudent', id, fields: { degree } }),
     removeStudent: (id) => send({ type: 'removeStudent', id }),
     removeProfessor: (id) => send({ type: 'removeProfessor', id }),

@@ -56,6 +56,11 @@ const state = {
   videoMode: 'p2p', // 'p2p' | 'livekit' — chosen here from the headcount so every client agrees
   spotlightName: null, // host "spotlight for everyone": pins this person big on every screen (Meet-style)
   videoQuality: 'hd', // 'sd' | 'hd' | 'fhd' — broadcast resolution; host-set, every on-camera client follows
+  // Room-wide TURN relay override: { host, username, credential } or null (= the build's default).
+  // The MC enters another relay's public IP when the built-in one is offline; every client reads
+  // this from state, so participants don't configure anything. TURN credentials are inherently
+  // client-visible (they ship in any WebRTC client), so distributing them in state is fine.
+  turnServer: null,
 };
 
 // LiveKit can only act as the SFU fallback if its credentials are configured (the /token
@@ -287,6 +292,29 @@ wss.on('connection', (ws) => {
         state.spotlightName = typeof msg.name === 'string' && msg.name.trim() ? msg.name.trim() : null;
         broadcastState();
         break;
+      // Host points the whole room at a different TURN relay (e.g. the built-in one is offline).
+      // Stored in state and broadcast, so every client — students, professors, guests — switches
+      // together; the P2P layer's self-heal then rebuilds any dead connections via the new relay.
+      // An empty host clears the override (back to the relay baked into the build).
+      case 'setTurnServer': {
+        if (!isHost(me)) break;
+        const host = String(msg.host || '')
+          .trim()
+          .replace(/^[a-z]+:\/\//i, '') // tolerate a pasted turn:// or https:// prefix
+          .replace(/[^A-Za-z0-9.:\-]/g, '')
+          .slice(0, 100);
+        if (!host) {
+          state.turnServer = null;
+        } else {
+          state.turnServer = {
+            host,
+            username: String(msg.username || '').slice(0, 100),
+            credential: String(msg.credential || '').slice(0, 200),
+          };
+        }
+        broadcastState();
+        break;
+      }
       // Host picks the broadcast resolution for the whole room; clients read state.videoQuality and
       // re-acquire the camera + re-cap at that size (and lift/lower the P2P bitrate to match).
       case 'setVideoQuality': {
