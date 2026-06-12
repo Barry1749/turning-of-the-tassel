@@ -9,7 +9,10 @@
     "start": "electron .",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac"
+    "dist:mac": "electron-builder --mac",
+    "release": "node release.mjs",
+    "release:win": "node release.mjs --win",
+    "release:mac": "node release.mjs --mac"
   },
   "devDependencies": {
     "electron": "^33.2.0",
