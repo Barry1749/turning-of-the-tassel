@@ -1,7 +1,7 @@
 {
   "name": "turning-of-the-tassel-desktop",
   "productName": "Turning of the Tassel",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Desktop app for the Turning of the Tassel ceremony (host or join).",
   "main": "main.js",
