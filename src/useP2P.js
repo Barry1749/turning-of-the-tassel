@@ -5,6 +5,7 @@
 // Notes: STUN handles most home networks; a free public TURN relay is included for
 // restrictive networks (best-effort). Mesh suits a small on-camera group.
 import { useEffect, useRef, useState } from 'react';
+import { qualitySpec, DEFAULT_QUALITY } from './videoQuality';
 
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
@@ -17,11 +18,32 @@ const ICE_SERVERS = [
 const ON_CAMERA = ['student', 'professor', 'host'];
 const onCam = (role) => ON_CAMERA.includes(role);
 
-export function useP2P({ enabled, myId, myRole, participants, selfStream, send, signalRef }) {
+// Push WebRTC toward crisp, full-resolution video instead of its conservative defaults: lift the
+// bitrate cap to the chosen quality's budget, forbid resolution downscaling, and — if the link
+// tightens — shed frame rate rather than sharpness. Best-effort: getParameters can race the first
+// negotiation, so any throw is safely ignored. Called after setLocalDescription (encodings exist by
+// then) and again whenever the host changes quality, since replaceTrack keeps the old cap otherwise.
+async function tuneVideoSender(sender, maxBitrate) {
+  if (!sender) return;
+  try {
+    const params = sender.getParameters();
+    if (!params.encodings || !params.encodings.length) return;
+    for (const enc of params.encodings) {
+      enc.maxBitrate = maxBitrate; // per the host-chosen quality (SD / HD / Full HD)
+      enc.scaleResolutionDownBy = 1; // never shrink the frame
+    }
+    params.degradationPreference = 'maintain-resolution'; // drop FPS, not resolution
+    await sender.setParameters(params);
+  } catch {
+    /* best effort — defaults still apply */
+  }
+}
+
+export function useP2P({ enabled, myId, myRole, participants, selfStream, send, signalRef, quality = DEFAULT_QUALITY }) {
   const [remote, setRemote] = useState({}); // peerId -> { stream }
   const S = useRef({ pcs: {}, senders: {}, pending: {} });
   const ctx = useRef({});
-  ctx.current = { myId, myRole, selfStream, send };
+  ctx.current = { myId, myRole, selfStream, send, quality };
 
   function attachLocal(peerId) {
     const stream = ctx.current.selfStream;
@@ -79,6 +101,7 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
     attachLocal(peerId);
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+    tuneVideoSender(vTx.sender, qualitySpec(ctx.current.quality).maxBitrate);
     ctx.current.send({ type: 'signal', to: peerId, data: { sdp: pc.localDescription } });
   }
 
@@ -110,6 +133,7 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
           attachLocal(from);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
+          tuneVideoSender(vTx?.sender, qualitySpec(ctx.current.quality).maxBitrate);
           ctx.current.send({ type: 'signal', to: from, data: { sdp: pc.localDescription } });
         }
       } else if (data.candidate) {
@@ -163,6 +187,14 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
     Object.keys(S.current.pcs).forEach((peerId) => attachLocal(peerId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selfStream]);
+
+  // Re-apply encoding params when the host changes broadcast quality. The running senders keep the
+  // old bitrate cap across the stream swap (replaceTrack preserves parameters), so walk them and
+  // lift/lower the cap to the new target; the resolution itself follows the freshly-captured stream.
+  useEffect(() => {
+    const max = qualitySpec(quality).maxBitrate;
+    Object.values(S.current.senders).forEach((s) => tuneVideoSender(s?.v, max));
+  }, [quality]);
 
   // teardown
   useEffect(() => {

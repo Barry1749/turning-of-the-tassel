@@ -511,6 +511,28 @@ button.link {
   background: #f2c14e;
   color: #16183b;
 }
+/* Broadcast-quality picker (host only) — sits under the Gallery/Ceremony toggle */
+.mc-quality {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.mc-quality span {
+  opacity: 0.8;
+}
+.mc-quality select {
+  margin-left: auto;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 2px 6px;
+  font-size: 0.82rem;
+}
+.mc-quality select option {
+  color: #000; /* native dropdown list renders on a light background */
+}
 .mc-row {
   display: flex;
   gap: 8px;

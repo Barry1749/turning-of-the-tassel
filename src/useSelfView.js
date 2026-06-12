@@ -12,9 +12,10 @@ import { computeCapTransform } from './headPose';
 import { createGestureTracker } from './gesture';
 import { TasselController, REST_ANGLE } from './tassel';
 import { drawScene, drawFlippedX, drawCameraOff } from './drawCap';
+import { qualitySpec, DEFAULT_QUALITY } from './videoQuality';
 
-async function getCamera() {
-  const video = { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' };
+async function getCamera(width, height) {
+  const video = { width: { ideal: width }, height: { ideal: height }, facingMode: 'user' };
   try {
     return await navigator.mediaDevices.getUserMedia({ video, audio: true });
   } catch (e) {
@@ -23,7 +24,7 @@ async function getCamera() {
   }
 }
 
-export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, getDrawAngle, onTassel, onCommit, name = '' }) {
+export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, getDrawAngle, onTassel, onCommit, name = '', quality = DEFAULT_QUALITY }) {
   const [stream, setStream] = useState(null); // mirrored composite — the owner's own tile
   const [selfCanvas, setSelfCanvas] = useState(null); // the mirrored composite's CANVAS, shown directly
   const [publishStream, setPublishStream] = useState(null); // un-mirrored composite — sent to peers
@@ -48,11 +49,14 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
     const R = ref.current;
 
     async function start() {
+      // Resolution follows the host-chosen quality. The composite canvas + cap renderer then track
+      // the camera's real frame size each frame (see drawScene), so this is what peers receive.
+      const { width: camW, height: camH } = qualitySpec(quality);
       // 1) Camera first — show the video ASAP, independent of model loading.
       let media;
       try {
         setStatus('starting');
-        media = await getCamera();
+        media = await getCamera(camW, camH);
       } catch (e) {
         if (!cancelled) {
           setError(e?.message || String(e));
@@ -81,14 +85,14 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
       }
 
       const canvas = document.createElement('canvas');
-      canvas.width = 1280;
-      canvas.height = 720;
+      canvas.width = camW;
+      canvas.height = camH;
 
       // Holds the un-mirrored composite (canvas flipped back each frame). Captured separately
       // and published to peers so others see the real image while we keep our mirrored selfie.
       const pubCanvas = document.createElement('canvas');
-      pubCanvas.width = 1280;
-      pubCanvas.height = 720;
+      pubCanvas.width = camW;
+      pubCanvas.height = camH;
 
       Object.assign(R, {
         media,
@@ -242,7 +246,7 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
       setArReady(false);
       setArError('');
     };
-  }, [active, isHost]);
+  }, [active, isHost, quality]);
 
   const resetGesture = useCallback(() => {
     ref.current.controller?.reset();

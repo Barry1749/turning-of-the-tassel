@@ -6,6 +6,7 @@ import { useP2P } from '../useP2P';
 import { useLiveKit } from '../useLiveKit';
 import { REST_ANGLE, ANGLE_MAX } from '../tassel';
 import { setSelfDegree } from '../drawCap';
+import { DEFAULT_QUALITY } from '../videoQuality';
 import { celebrate, initAudio } from '../effects';
 import Stage from './Stage';
 import MCPanel from './MCPanel';
@@ -32,6 +33,9 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
   const roster = cstate?.roster || [];
   const currentStudent = roster.find((s) => s.id === cstate?.currentId) || null;
   const guestCount = participants.filter((p) => p.role === 'guest').length; // watch-only; counted, not listed
+  // Host-chosen broadcast resolution (server-authoritative, like videoMode). Every on-camera client
+  // reads it, so the whole room captures + encodes at the same quality. Default until state arrives.
+  const videoQuality = cstate?.videoQuality || DEFAULT_QUALITY;
 
   // My own degree drives my self-view tassel colour. Find my roster entry by name and push it
   // into the cap renderer; it re-applies live whenever the MC changes my degree.
@@ -67,6 +71,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     onTassel,
     onCommit,
     name,
+    quality: videoQuality,
   });
 
   // Video transport. When LiveKit (SFU) is configured we run a HYBRID: default to the free P2P
@@ -86,7 +91,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
   // Hold off connecting any transport until the server has told us who we are.
   const lk = useLiveKit({ enabled: liveKitEnabled && identified, url: liveKitUrl, identity: myId, name, selfStream: publishStream });
   const daily = useDaily({ roomUrl: dailyEnabled && identified ? roomUrl : '', name, selfStream: publishStream });
-  const p2p = useP2P({ enabled: p2pEnabled && identified, myId, myRole: role, participants, selfStream: publishStream, send, signalRef });
+  const p2p = useP2P({ enabled: p2pEnabled && identified, myId, myRole: role, participants, selfStream: publishStream, send, signalRef, quality: videoQuality });
 
   const video = liveKitEnabled ? lk : dailyEnabled ? daily : p2p;
   const remote = video.remote;
@@ -148,6 +153,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     addStudent: (s) => send({ type: 'addStudent', ...s }),
     addProfessor: (p) => send({ type: 'addProfessor', ...p }),
     setTitle: (title) => send({ type: 'setTitle', title }),
+    setVideoQuality: (q) => send({ type: 'setVideoQuality', quality: q }),
     setDegree: (id, degree) => send({ type: 'updateStudent', id, fields: { degree } }),
     removeStudent: (id) => send({ type: 'removeStudent', id }),
     removeProfessor: (id) => send({ type: 'removeProfessor', id }),

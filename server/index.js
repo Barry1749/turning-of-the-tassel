@@ -55,11 +55,16 @@ const state = {
   guestToken: newToken(), // one shared watch-only link for guests
   videoMode: 'p2p', // 'p2p' | 'livekit' — chosen here from the headcount so every client agrees
   spotlightName: null, // host "spotlight for everyone": pins this person big on every screen (Meet-style)
+  videoQuality: 'hd', // 'sd' | 'hd' | 'fhd' — broadcast resolution; host-set, every on-camera client follows
 };
 
 // LiveKit can only act as the SFU fallback if its credentials are configured (the /token
 // endpoint below needs them to sign joins); otherwise we stay on the P2P mesh whatever the count.
 const liveKitConfigured = !!(process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET);
+
+// Valid broadcast-quality ids — mirror VIDEO_QUALITIES in src/videoQuality.js. The host picks one
+// and every on-camera client reads state.videoQuality, capturing + encoding at the matching size.
+const VALID_QUALITY = new Set(['sd', 'hd', 'fhd']);
 
 const clients = new Map(); // ws -> { id, role, name }
 
@@ -282,6 +287,16 @@ wss.on('connection', (ws) => {
         state.spotlightName = typeof msg.name === 'string' && msg.name.trim() ? msg.name.trim() : null;
         broadcastState();
         break;
+      // Host picks the broadcast resolution for the whole room; clients read state.videoQuality and
+      // re-acquire the camera + re-cap at that size (and lift/lower the P2P bitrate to match).
+      case 'setVideoQuality': {
+        if (!isHost(me)) break;
+        if (VALID_QUALITY.has(msg.quality)) {
+          state.videoQuality = msg.quality;
+          broadcastState();
+        }
+        break;
+      }
       case 'selectStudent':
         if (!isHost(me)) break;
         if (state.roster.some((s) => s.id === msg.id)) {

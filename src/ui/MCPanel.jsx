@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { DEGREE_TASSELS, tasselColorFor } from '../drawCap';
+import { VIDEO_QUALITIES, DEFAULT_QUALITY } from '../videoQuality';
 
 // ---------------------------------------------------------------------------
 // CSV roster import / export.
@@ -351,6 +352,20 @@ export default function MCPanel({
             <button className={!ceremony ? 'sel' : ''} onClick={() => actions.setMode('normal')}>Gallery</button>
             <button className={ceremony ? 'sel' : ''} onClick={() => actions.setMode('ceremony')}>Ceremony</button>
           </div>
+
+          {canEditRoster && (
+            <label className="mc-quality" title="Broadcast video resolution for everyone on camera. Higher looks sharper but needs more bandwidth.">
+              <span>Video quality</span>
+              <select
+                value={cstate.videoQuality || DEFAULT_QUALITY}
+                onChange={(e) => actions.setVideoQuality(e.target.value)}
+              >
+                {VIDEO_QUALITIES.map((q) => (
+                  <option key={q.id} value={q.id}>{q.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <div className="mc-row">
             <button onClick={actions.prev}>◀ Prev</button>
