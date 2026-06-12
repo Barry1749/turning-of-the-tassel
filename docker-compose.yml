@@ -1,0 +1,67 @@
+name: turning-of-the-tassel
+
+# Option B: three services from one image (see Dockerfile).
+#   api    — the WebSocket control server (roster, spotlight, tassel sync, LiveKit /token).
+#   web    — the built Vite app on :4173; proxies /ws + /token to `api` over the compose network.
+#   tunnel — cloudflared quick tunnel that publishes an HTTPS link and prints the MC console URL.
+#
+# Run it:   docker compose up --build
+# Then watch the `tunnel` logs for the "HOST (Master of Ceremony) console" link:
+#           docker compose logs -f tunnel
+# Stop it:  docker compose down
+#
+# Why the tunnel matters: browsers only allow the camera over https:// (or localhost), so remote
+# students/professors need the cloudflared HTTPS link — the LAN address over http:// won't work.
+
+services:
+  api:
+    build: .
+    image: tassel-app
+    command: node server/index.js
+    environment:
+      PORT: "3001"
+      # Drop the per-restart host token on the shared volume so `tunnel` can print the full MC link.
+      HOST_TOKEN_FILE: /shared/.host-token.local
+      # Optional LiveKit SFU fallback (large ceremonies). Set these AND build with VITE_LIVEKIT_URL
+      # (see x-build-args below), then `docker compose up --build`. Left unset = built-in P2P video.
+      # LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      # LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+    volumes:
+      - tokens:/shared
+    restart: unless-stopped
+
+  web:
+    build: .
+    image: tassel-app
+    depends_on: [api]
+    command: npm run preview
+    environment:
+      # The proxy in vite.config.js sends /ws + /token here instead of localhost.
+      API_HOST: api
+      API_PORT: "3001"
+    # Optional: expose to the host for same-machine testing on http://localhost:4173.
+    # (Camera works on localhost; over a LAN IP it won't — use the tunnel link for remote people.)
+    ports:
+      - "4173:4173"
+    restart: unless-stopped
+
+  tunnel:
+    build: .
+    image: tassel-app
+    depends_on: [web, api]
+    command: node scripts/share.mjs 4173
+    environment:
+      # Tunnel the web container (not localhost), and read the token from the shared volume.
+      TUNNEL_TARGET: http://web:4173
+      HOST_TOKEN_FILE: /shared/.host-token.local
+    volumes:
+      - tokens:/shared
+    restart: unless-stopped
+
+volumes:
+  tokens:
+
+# To enable LiveKit video, rebuild with the frontend URL baked in (Vite needs it at build time):
+#   docker compose build --build-arg VITE_LIVEKIT_URL=wss://your-livekit-host
+# and uncomment LIVEKIT_API_KEY / LIVEKIT_API_SECRET on `api` above (pass them via your shell or a
+# .env file next to this compose file). For Daily instead, build with VITE_DAILY_ROOM_URL.

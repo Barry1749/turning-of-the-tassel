@@ -3,6 +3,7 @@ dist
 dist-ssr
 .vite
 *.local
+.ceremony-native.*
 .DS_Store
 .env
 .env.local

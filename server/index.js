@@ -15,7 +15,10 @@ dotenv.config();
 
 const PORT = process.env.PORT || 3001;
 const REST_ANGLE = 1.05; // tassel resting on the right (must match the client)
-const HOST_TOKEN_FILE = '.host-token.local'; // server drops the per-restart MC token here for the share script (gitignored via *.local)
+// server drops the per-restart MC token here for the share script (gitignored via *.local).
+// HOST_TOKEN_FILE lets it land on a shared path when the server and tunnel run in separate
+// Docker containers (a shared volume) — see docker-compose.yml.
+const HOST_TOKEN_FILE = process.env.HOST_TOKEN_FILE || '.host-token.local';
 
 // Per-link access tokens: students, professors, and guests enter through an opaque ?t=<token>
 // link the MC shares. The token — not editable URL params — is what tells the server who you are,

@@ -14,16 +14,22 @@ const procs = [];
 
 // Which local port to expose. Defaults to the dev server (5173); pass another port
 // (e.g. `node scripts/share.mjs 4173`) to tunnel the `vite preview` release build instead.
+// TUNNEL_TARGET overrides the whole URL — e.g. `http://web:4173` when the web server runs in a
+// separate Docker container reachable by service name (see docker-compose.yml).
 const port = process.argv[2] || '5173';
-const p = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`], { shell: true });
+const target = process.env.TUNNEL_TARGET || `http://localhost:${port}`;
+const p = spawn('cloudflared', ['tunnel', '--url', target], { shell: true });
 procs.push(p);
 
 // Read the secret host token the server wrote on startup, so we can print a complete, ready-to-open
 // MC link. If it isn't there yet (server still starting, or run without it), fall back to the bare
 // tunnel URL and point at the server log.
+// Where the server wrote the secret host token. Matches the server's HOST_TOKEN_FILE, so a
+// shared Docker volume (e.g. /shared/.host-token.local) lets this print the full MC link.
+const hostTokenFile = process.env.HOST_TOKEN_FILE || '.host-token.local';
 function readHostToken() {
   try {
-    return readFileSync('.host-token.local', 'utf8').trim();
+    return readFileSync(hostTokenFile, 'utf8').trim();
   } catch {
     return '';
   }
@@ -60,7 +66,7 @@ p.on('error', (e) => {
   console.error('Install it with:  winget install --id Cloudflare.cloudflared');
 });
 
-console.log(`Starting tunnel for http://localhost:${port} — make sure the web server is running.`);
+console.log(`Starting tunnel for ${target} — make sure the web server is running.`);
 console.log('This takes ~5–10 seconds…');
 
 function shutdown() {

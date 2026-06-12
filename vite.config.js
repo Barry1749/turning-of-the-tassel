@@ -1,9 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Which ceremony backend the dev server proxies /ws + /token to. Defaults to :3001 (the
-// usual `npm run server`), but API_PORT lets a worktree point at its own backend without
-// disturbing a :3001 already in use — e.g. `$env:API_PORT='3016'; npm run dev`.
+// Which ceremony backend the dev server proxies /ws + /token to. Defaults to localhost:3001
+// (the usual `npm run server`). API_PORT lets a worktree point at its own backend without
+// disturbing a :3001 already in use — e.g. `$env:API_PORT='3016'; npm run dev`. API_HOST lets
+// the web server reach the backend on a different host — e.g. `API_HOST=api` when the control
+// server runs in a separate Docker container (see docker-compose.yml).
+const apiHost = process.env.API_HOST || 'localhost';
 const apiPort = process.env.API_PORT || 3001;
 
 // Expose the ceremony WebSocket server same-origin at /ws (and /token for LiveKit), so a
@@ -11,8 +14,8 @@ const apiPort = process.env.API_PORT || 3001;
 // Shared by BOTH the dev server and `vite preview`, so the release build (`npm run preview`)
 // reaches the backend exactly like dev does — no VITE_WS_URL baked in at build time required.
 const proxy = {
-  '/ws': { target: `ws://localhost:${apiPort}`, ws: true, changeOrigin: true },
-  '/token': { target: `http://localhost:${apiPort}`, changeOrigin: true },
+  '/ws': { target: `ws://${apiHost}:${apiPort}`, ws: true, changeOrigin: true },
+  '/token': { target: `http://${apiHost}:${apiPort}`, changeOrigin: true },
 };
 
 export default defineConfig({

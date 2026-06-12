@@ -1,0 +1,23 @@
+# Build context hygiene — keep host-only and generated files out of the image so the build
+# is fast and reproducible (deps come from `npm ci` inside the image, not the host).
+node_modules
+**/node_modules
+dist
+dist-ssr
+.vite
+
+# Secrets / per-machine state — never bake these in (pass via compose env / volume instead).
+*.local
+.env
+.env.local
+.host-token.local
+.ceremony-native.*
+
+# VCS, tooling, and Claude worktrees (can be huge).
+.git
+.gitignore
+.claude
+
+# Docs / OS cruft — not needed at build time.
+.DS_Store
+*.md
