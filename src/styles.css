@@ -80,24 +80,42 @@ button.link {
 /* ---------- App shell ---------- */
 .app {
   position: relative;
+  /* 100dvh = the DYNAMIC (currently visible) viewport height. Plain 100vh on mobile is the LARGE
+     viewport — it includes the area behind the browser's address/tool bars, so the app renders
+     taller than what's on screen and the bottom of the stage (e.g. the 2nd ceremony tile) sits
+     below the fold until you scroll. dvh tracks the visible area, so everything fits with no
+     scroll. 100vh stays as the fallback for browsers without dvh (pre-2022). */
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* a fixed-viewport SPA: the stage fits the height (flex), so never page-scroll */
 }
 .topbar {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap; /* stay one row — never wrap to 2-3 tall lines that steal height from the stage */
   gap: 12px;
   padding: 10px 16px;
   background: rgba(0, 0, 0, 0.35);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 5;
 }
+/* Every control keeps its natural size; only the title flexes + truncates when the row is tight,
+   so the pills and the Leave button never get pushed off the right edge on a narrow screen. */
+.topbar > * {
+  flex-shrink: 0;
+}
 .topbar .brand {
   font-weight: 800;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 /* The brand text is the editable ceremony title (MC/host); it reads as plain text until hovered/focused. */
 .brand-edit {
@@ -465,10 +483,12 @@ button.link {
 /* ---------- Spotlight ---------- */
 .spotlight {
   flex: 1;
+  min-height: 0; /* let the stage shrink inside the flex column so the two tiles always fit (no scroll) */
   display: flex;
   align-items: stretch;
   justify-content: center;
   padding: 12px;
+  overflow: hidden;
   background: radial-gradient(circle at 50% 40%, #1a1d46, #070813);
 }
 .spot-tiles {
@@ -477,6 +497,7 @@ button.link {
   gap: 12px;
   width: 100%;
   height: 100%;
+  min-height: 0; /* same: the column-stacked tiles split the height instead of overflowing it */
 }
 .spot-col {
   flex: 1;
@@ -969,6 +990,19 @@ button.link {
 @media (max-width: 720px) {
   .mc {
     width: calc(100vw - 24px);
+  }
+}
+
+/* Phones: tighten the top bar and drop the secondary "name · role" label so the title, mode +
+   video pills, connection dot and Leave button all sit comfortably on one line (your identity is
+   still shown in the MC panel). Keeps the bar short so the two stacked ceremony tiles get the height. */
+@media (max-width: 560px) {
+  .topbar {
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .topbar .me {
+    display: none;
   }
 }
 
