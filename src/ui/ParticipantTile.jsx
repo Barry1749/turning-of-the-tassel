@@ -72,11 +72,26 @@ export default function ParticipantTile({
   useEffect(() => {
     if (stream) return undefined;
     let raf;
+    // A name card's picture only changes when the tassel ANGLE moves — everything else (name, flag,
+    // turned, degree) re-runs this effect through the deps below. Re-rendering the full 3D cap every
+    // frame for a card that's just sitting at rest is pure waste, and a gallery can hold many of them
+    // (each one was a full WebGL cap render/frame through the shared card renderer). So render only
+    // when the angle changed, plus a short "settle" tail afterwards so the soft tassel still comes to
+    // rest before we stop. Idle cards then cost ~nothing; the canvas simply keeps its last frame.
+    let lastAngle = null;
+    let settle = 0;
     const loop = () => {
       const canvas = canvasRef.current;
       if (canvas) {
         const a = getAngleRef.current ? getAngleRef.current() : REST_ANGLE;
-        renderNameCard(canvas, { name, flag, angle: a, turned, degree });
+        if (lastAngle === null || Math.abs(a - lastAngle) > 1e-4) {
+          lastAngle = a;
+          settle = 18; // ~0.3s @60fps: keep drawing so the pendulum settles after the angle stops
+        }
+        if (settle > 0) {
+          renderNameCard(canvas, { name, flag, angle: a, turned, degree });
+          settle--;
+        }
       }
       raf = requestAnimationFrame(loop);
     };

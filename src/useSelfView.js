@@ -11,7 +11,7 @@ import { createLandmarkers } from './vision';
 import { computeCapTransform } from './headPose';
 import { createGestureTracker } from './gesture';
 import { TasselController, REST_ANGLE } from './tassel';
-import { drawScene, drawFlippedX, drawCameraOff } from './drawCap';
+import { drawScene, drawFlippedX, drawCameraOff, AR_FPS } from './drawCap';
 import { qualitySpec, DEFAULT_QUALITY } from './videoQuality';
 
 async function getCamera(width, height) {
@@ -107,6 +107,7 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
         lastTs: 0,
         lastNow: 0,
         lastSent: 0,
+        lastFrameT: 0,
         frame: 0,
         running: true,
       });
@@ -153,6 +154,15 @@ export function useSelfView({ active, isHost, gestureEnabled = true, turnKey, ge
     function loop(now) {
       const S = ref.current;
       if (!S.running) return;
+      // Throttle the heavy AR work to AR_FPS regardless of how fast RAF fires (ProMotion iPhones can
+      // reach 120Hz). Skip-and-reschedule frames that land within the target interval — this cuts face
+      // inference + WebGL + composite ~2x at 60Hz and up to ~4x at 120Hz, the main lever against the
+      // phone overheating. (The tassel physics is fixed-step, so motion stays smooth either way.)
+      if (S.lastFrameT && now - S.lastFrameT < 1000 / AR_FPS - 1) {
+        requestAnimationFrame(loop);
+        return;
+      }
+      S.lastFrameT = now;
       const { video, canvas } = S;
       if (!cb.current.camOn) {
         // Camera off: keep feeding the SAME captured canvas track, but paint a placeholder

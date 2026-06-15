@@ -422,6 +422,53 @@ export function createCapRenderer(width = 640, height = 480) {
   cord.frustumCulled = false;
   cap.add(cord);
 
+  // The cord is a tube swept along cordCurve. Its TOPOLOGY (vertex count, index, UVs) is fixed,
+  // so we build the TubeGeometry ONCE (lazily, from the first settled control points — same as the
+  // old per-frame build) and thereafter overwrite only its position/normal buffers in place. The
+  // old code allocated a whole new TubeGeometry every frame and disposed the last, which churned
+  // the GC and forced a full GPU buffer re-upload each frame. The per-vertex math below mirrors
+  // three's own TubeGeometry.generateSegment exactly (same computeFrenetFrames + getPointAt calls,
+  // same curve/arc-length cache state), so the swept tube is identical — only the allocation is gone.
+  const CORD_TUBULAR = ctrl.length * 3;
+  const CORD_RADIAL = 6;
+  const _tubeP = new THREE.Vector3();
+  let cordBuilt = false;
+  function updateCordGeometry() {
+    if (!cordBuilt) {
+      cord.geometry.dispose();
+      cord.geometry = new THREE.TubeGeometry(cordCurve, CORD_TUBULAR, CORD_RADIUS, CORD_RADIAL, false);
+      cordBuilt = true;
+      return; // the fresh TubeGeometry already holds this frame's vertices
+    }
+    const geo = cord.geometry;
+    const frames = cordCurve.computeFrenetFrames(CORD_TUBULAR, false);
+    const pos = geo.attributes.position.array;
+    const nor = geo.attributes.normal.array;
+    let o = 0;
+    for (let i = 0; i <= CORD_TUBULAR; i++) {
+      cordCurve.getPointAt(i / CORD_TUBULAR, _tubeP);
+      const N = frames.normals[i];
+      const B = frames.binormals[i];
+      for (let j = 0; j <= CORD_RADIAL; j++) {
+        const v = (j / CORD_RADIAL) * Math.PI * 2;
+        const sin = Math.sin(v);
+        const cos = -Math.cos(v);
+        let nx = cos * N.x + sin * B.x;
+        let ny = cos * N.y + sin * B.y;
+        let nz = cos * N.z + sin * B.z;
+        const inv = 1 / (Math.sqrt(nx * nx + ny * ny + nz * nz) || 1e-6);
+        nx *= inv; ny *= inv; nz *= inv;
+        nor[o] = nx; nor[o + 1] = ny; nor[o + 2] = nz;
+        pos[o] = _tubeP.x + CORD_RADIUS * nx;
+        pos[o + 1] = _tubeP.y + CORD_RADIUS * ny;
+        pos[o + 2] = _tubeP.z + CORD_RADIUS * nz;
+        o += 3;
+      }
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.normal.needsUpdate = true;
+  }
+
   const bead = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), tasselMat);
   cap.add(bead);
 
@@ -456,7 +503,7 @@ export function createCapRenderer(width = 640, height = 480) {
     mesh.scale.set(1, len, 1);
   }
 
-  // rebuild the cord tube, re-seat the bead, and re-place the crown + every strand segment
+  // update the cord tube (in place), re-seat the bead, and re-place the crown + every strand segment
   function syncMeshes() {
     _A.set((PIN.x + _C.x) / 2, BOARD_TOP + CORD_RADIUS, (PIN.z + _C.z) / 2); // rests on board
     ctrl[0].copy(PIN);
@@ -464,9 +511,7 @@ export function createCapRenderer(width = 640, height = 480) {
     ctrl[2].copy(_C);
     for (let i = 1; i < HANG_N; i++) ctrl[2 + i].copy(hang[i]);
 
-    const geo = new THREE.TubeGeometry(cordCurve, ctrl.length * 3, CORD_RADIUS, 6, false);
-    cord.geometry.dispose();
-    cord.geometry = geo;
+    updateCordGeometry();
 
     // slider bead, a third of the way from the button to the rim
     bead.position.set(

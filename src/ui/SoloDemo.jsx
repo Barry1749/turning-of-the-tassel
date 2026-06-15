@@ -3,7 +3,7 @@ import { createLandmarkers } from '../vision';
 import { computeCapTransform } from '../headPose';
 import { createGestureTracker } from '../gesture';
 import { TasselController } from '../tassel';
-import { drawScene } from '../drawCap';
+import { drawScene, AR_FPS } from '../drawCap';
 import { celebrate, initAudio } from '../effects';
 
 // Standalone AR sandbox (no backend, no video call): your own hand turns your own tassel.
@@ -51,6 +51,14 @@ export default function SoloDemo({ onBack }) {
   function tick(now) {
     const s = loop.current;
     if (!s.running) return;
+    // Throttle the heavy AR work to AR_FPS no matter how fast RAF fires (ProMotion iPhones reach
+    // 120Hz). Skip-and-reschedule frames inside the target interval — solo runs BOTH face and hand
+    // inference per frame, so uncapped it's the heaviest loop in the app and the worst for heat.
+    if (s.lastFrameT && now - s.lastFrameT < 1000 / AR_FPS - 1) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    s.lastFrameT = now;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (video && video.readyState >= 2 && s.faceLandmarker && s.handLandmarker) {

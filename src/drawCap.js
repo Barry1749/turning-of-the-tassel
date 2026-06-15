@@ -14,6 +14,14 @@ import { Euler, Vector3 } from 'three';
 import { REST_ANGLE } from './tassel';
 import { createCapRenderer } from './cap3d';
 
+// Cap the per-frame AR pipeline (MediaPipe face/hand inference + the WebGL cap + the 2D composite)
+// to this frame rate. requestAnimationFrame fires at the display's refresh — up to 120Hz on a
+// ProMotion iPhone — but the published camera stream is only 30fps and a head-worn cap needs no more.
+// Running the whole pipeline at 120Hz just burns battery and overheats the device. Both the ceremony
+// self-view (useSelfView) and the solo demo gate their loops on this; the tassel physics is fixed-step,
+// so it stays smooth no matter the render rate. Lower to 24 to shed even more load.
+export const AR_FPS = 30;
+
 const BOARD = '#16183b';
 const BOARD_EDGE = '#2b2f6b';
 const GOLD = '#f2c14e';
