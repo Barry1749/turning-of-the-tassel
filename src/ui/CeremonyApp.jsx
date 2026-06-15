@@ -149,6 +149,10 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
     select: (id) => send({ type: 'selectStudent', id }),
     selectProfessor: (id) => send({ type: 'selectProfessor', id }),
     setSpotlight: (name) => send({ type: 'setSpotlight', name }),
+    // MC toggles their own professor capability (camera + hand-gesture tassel turn). Server flips
+    // this connection between 'mc' and 'host' and re-sends our identity, which re-renders us.
+    claimProfessor: (on) => send({ type: 'claimProfessor', on }),
+    setName: (n) => send({ type: 'setName', name: n }),
     reorderStudents: (ids) => send({ type: 'reorderStudents', ids }),
     addStudent: (s) => send({ type: 'addStudent', ...s }),
     addProfessor: (p) => send({ type: 'addProfessor', ...p }),
@@ -255,6 +259,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
         selfCanvas={selfCanvas}
         remote={remote}
         tasselRef={tasselRef}
+        controlsVisible={needCamera && camStatus === 'ready'}
       />
 
       {isController && (
@@ -262,6 +267,7 @@ export default function CeremonyApp({ token, roomUrl, onLeave }) {
           cstate={cstate}
           actions={actions}
           participants={participants}
+          myName={name}
           canEditRoster={canEditRoster}
           guestCount={guestCount}
           isProfessor={isProfessor}

@@ -29,7 +29,8 @@ param(
   [string]$Runtime = 'docker',
   [switch]$NoTunnel,
   [switch]$AutoInstall,    # install the chosen runtime automatically if it's missing (admin prompt)
-  [int]$TimeoutSeconds = 180
+  [int]$TimeoutSeconds = 180,
+  [int]$Slot = 0           # which ceremony slot to stop (0 = stop ALL). `start` ignores it and auto-picks.
 )
 
 # Native stderr is handled via cmd /c (see header) — keep PowerShell errors non-terminating and
@@ -39,6 +40,20 @@ $root = Split-Path $PSScriptRoot -Parent     # repo root — docker-compose.yml 
 $PidFile = Join-Path $root '.ceremony-native.pid'    # tracks the native (npm) process tree
 $NativeLog = Join-Path $root '.ceremony-native.log'  # native stdout (tunnel link is printed here)
 $HostTokenFile = Join-Path $root '.host-token.local' # the server writes the MC token here at boot
+
+# Multi-ceremony "slots": several ceremonies can run on one PC at once, each on its own host web
+# port and (for Docker) its own compose project. Slot N → web port 4172+N. `start` auto-picks the
+# first slot whose web port is free, prints SLOT=N for the caller, and the desktop app passes that
+# back as `stop -Slot N` to tear down just that one. These script-scoped values hold the chosen
+# slot for the link resolvers; the defaults keep the standalone link/open/status actions working.
+$script:ComposeProject = ''   # '' = compose's default project name (turning-of-the-tassel)
+$script:WebPort = 4173
+function Get-FreeSlot {
+  for ($n = 1; $n -le 20; $n++) {
+    if (-not (Get-NetTCPConnection -LocalPort (4172 + $n) -State Listen -ErrorAction SilentlyContinue)) { return $n }
+  }
+  return 0
+}
 
 function Fail($msg) { Write-Output "ERROR: $msg"; exit 1 }
 
@@ -120,13 +135,14 @@ function Ensure-Docker([switch]$AutoInstall) {
 }
 
 function Get-DockerLink([switch]$Local) {
+  $pj = if ($script:ComposeProject) { "-p $($script:ComposeProject) " } else { "" }
   if ($Local) {
-    $log = (cmd /c "docker compose logs api 2>&1") -join "`n"
+    $log = (cmd /c "docker compose ${pj}logs api 2>&1") -join "`n"
     $m = [regex]::Match($log, '\?t=([A-Za-z0-9_\-]{16,})')
-    if ($m.Success) { return "http://localhost:4173/?t=$($m.Groups[1].Value)" }
+    if ($m.Success) { return "http://localhost:$($script:WebPort)/?t=$($m.Groups[1].Value)" }
     return $null
   }
-  $log = (cmd /c "docker compose logs tunnel 2>&1") -join "`n"
+  $log = (cmd /c "docker compose ${pj}logs tunnel 2>&1") -join "`n"
   $hits = [regex]::Matches($log, 'https://[a-z0-9-]+\.trycloudflare\.com[^\s|]*')
   if ($hits.Count -eq 0) { return $null }
   foreach ($h in $hits) { if ($h.Value -match '\?t=') { return $h.Value } }
@@ -252,10 +268,18 @@ try {
       }
       else {
         Ensure-Docker -AutoInstall:$AutoInstall
+        # Claim the next free slot so several ceremonies can run side by side on one PC.
+        $slotN = Get-FreeSlot
+        if ($slotN -eq 0) { Fail "No free ceremony slot — web ports 4173-4192 are all in use." }
+        $script:ComposeProject = "tassel-$slotN"
+        $script:WebPort = 4172 + $slotN
+        $env:WEB_PORT = "$($script:WebPort)"   # docker-compose maps this host port -> the container's 4173
         $svc = if ($NoTunnel) { ' api web' } else { '' }
+        Write-Output "Ceremony slot $slotN — compose project '$($script:ComposeProject)', web port $($script:WebPort)."
         Write-Output "Building images and starting containers (first run pulls base images + builds — can take a few minutes)..."
-        cmd /c "docker compose up -d --build$svc"
-        if ($LASTEXITCODE -ne 0) { Fail "docker compose failed to start. Run 'docker compose logs' for details." }
+        cmd /c "docker compose -p $($script:ComposeProject) up -d --build$svc"
+        if ($LASTEXITCODE -ne 0) { Fail "docker compose failed to start. Run 'docker compose -p $($script:ComposeProject) logs' for details." }
+        Write-Output "SLOT=$slotN"   # machine-readable: the desktop app passes this back as `stop -Slot N`
         Write-Output "Containers up. Resolving the MC link..."
       }
       $link = Wait-Link
@@ -277,7 +301,31 @@ try {
     'stop' {
       Write-Output "Stopping..."
       $stoppedNative = Stop-Native
-      if ((Get-DockerState) -eq 'ready') { cmd /c "docker compose down" }
+      if ((Get-DockerState) -eq 'ready') {
+        if ($Slot -gt 0) {
+          # Stop just THIS ceremony's slot (its own compose project), leaving any other ceremony up.
+          $proj = "tassel-$Slot"
+          Write-Output "Stopping ceremony slot $Slot (project '$proj')..."
+          cmd /c "docker compose -p $proj down --remove-orphans 2>&1"
+          # Fallback scoped to this project: force-remove a container that outlived `down`.
+          $left = @(cmd /c "docker ps -aq --filter ancestor=tassel-app --filter label=com.docker.compose.project=$proj 2>nul" | Where-Object { $_ -and $_.Trim() })
+        }
+        else {
+          # No slot given (e.g. the CLI `stop`): clear EVERY ceremony on this PC. `down` handles the
+          # default project; the image-matched sweep then catches every tassel-N project too. (Also
+          # catches a stack started under a different project name by an older build.)
+          Write-Output "Stopping all ceremonies on this PC..."
+          cmd /c "docker compose down --remove-orphans 2>&1"
+          $left = @(cmd /c "docker ps -aq --filter ancestor=tassel-app 2>nul" | Where-Object { $_ -and $_.Trim() })
+        }
+        if ($left.Count -gt 0) {
+          Write-Output "Force-removing $($left.Count) leftover ceremony container(s)..."
+          cmd /c "docker rm -f $($left -join ' ') 2>&1"
+        }
+      }
+      else {
+        Write-Output "Docker engine isn't running — no containers to stop."
+      }
       Write-Output "Stopped."
     }
     'link' {

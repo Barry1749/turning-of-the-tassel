@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld('tassel', {
   join: (url) => ipcRenderer.invoke('join', url),
   host: (opts) => ipcRenderer.invoke('host', opts),
   stop: () => ipcRenderer.invoke('stop'),
+  copy: (text) => ipcRenderer.invoke('copy', text),
   onStatus: (cb) => ipcRenderer.on('status', (_e, msg) => cb(msg)),
+  onMcLink: (cb) => ipcRenderer.on('mclink', (_e, url) => cb(url)),
 });

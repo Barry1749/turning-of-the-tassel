@@ -35,6 +35,11 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 compose() { $SUDO $COMPOSE_BASE "$@"; }
 docker_engine_ok() { $SUDO docker info >/dev/null 2>&1; }
 
+# Multi-ceremony slots: a free host web port (4172+N) marks a free slot, so several ceremonies can
+# run on one PC, each its own compose project (tassel-N) + web port. (/dev/tcp is a bash builtin.)
+port_free() { ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+get_free_slot() { local n; for n in $(seq 1 20); do port_free $((4172 + n)) && { echo "$n"; return; }; done; echo 0; }
+
 need_compose() {
   if $SUDO docker compose version >/dev/null 2>&1; then COMPOSE_BASE="docker compose"
   elif command -v docker-compose >/dev/null 2>&1; then COMPOSE_BASE="docker-compose"
@@ -107,7 +112,7 @@ public_link() {  # docker tunnel link
 local_link() {  # docker local link from the api's host token
   local tok
   tok="$(compose logs api 2>&1 | grep -oE '\?t=[A-Za-z0-9_-]{16,}' | head -n1 | sed 's/^?t=//')" || true
-  [ -n "$tok" ] && printf 'http://localhost:4173/?t=%s' "$tok"
+  [ -n "$tok" ] && printf 'http://localhost:%s/?t=%s' "${WEB_PORT:-4173}" "$tok"
 }
 
 # ============================ Native (Node) runtime ============================
@@ -239,14 +244,16 @@ EOF
 
 ACTION="${1:-start}"
 shift 2>/dev/null || true
-LOCAL=0; AUTO=0; RUNTIME="docker"
-for a in "$@"; do
-  case "$a" in
+LOCAL=0; AUTO=0; RUNTIME="docker"; SLOT=0
+while [ $# -gt 0 ]; do
+  case "$1" in
     --local)        LOCAL=1 ;;
     --auto-install) AUTO=1 ;;
     --native)       RUNTIME="native" ;;
     --docker)       RUNTIME="docker" ;;
+    --slot)         SLOT="${2:-0}"; shift ;;   # which ceremony slot to stop (0 = all)
   esac
+  shift
 done
 
 case "$ACTION" in
@@ -257,12 +264,18 @@ case "$ACTION" in
     else
       ensure_docker "$AUTO"
       need_compose
+      slot="$(get_free_slot)"
+      [ "$slot" -eq 0 ] && fail "No free ceremony slot — web ports 4173-4192 are all in use."
+      export COMPOSE_PROJECT_NAME="tassel-$slot"   # compose targets this project (its own stack)
+      export WEB_PORT=$((4172 + slot))             # docker-compose maps this host port -> container 4173
+      echo "Ceremony slot $slot — project $COMPOSE_PROJECT_NAME, web port $WEB_PORT."
       echo "Building images and starting containers (first run pulls base images + builds — can take a few minutes)..."
       if [ "$LOCAL" -eq 1 ]; then
-        compose up -d --build api web || fail "docker compose failed to start. Run '$COMPOSE_BASE logs' for details."
+        compose up -d --build api web || fail "docker compose failed to start. Run 'docker compose -p $COMPOSE_PROJECT_NAME logs' for details."
       else
-        compose up -d --build || fail "docker compose failed to start. Run '$COMPOSE_BASE logs' for details."
+        compose up -d --build || fail "docker compose failed to start. Run 'docker compose -p $COMPOSE_PROJECT_NAME logs' for details."
       fi
+      echo "SLOT=$slot"   # machine-readable: the desktop app passes this back as `stop --slot N`
       echo "Containers up. Resolving the MC link..."
     fi
     link="$(wait_link)" || { echo "Started, but couldn't read the MC link yet. Try './scripts/ceremony.sh link' shortly, or check the logs."; exit 2; }
@@ -271,8 +284,28 @@ case "$ACTION" in
   stop)
     native_running && stop_native
     if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-      if docker compose version >/dev/null 2>&1; then docker compose down
-      elif command -v docker-compose >/dev/null 2>&1; then docker-compose down; fi
+      if [ "$SLOT" -gt 0 ]; then
+        # Stop just THIS ceremony's slot, leaving any other ceremony running.
+        export COMPOSE_PROJECT_NAME="tassel-$SLOT"
+        echo "Stopping ceremony slot $SLOT (project $COMPOSE_PROJECT_NAME)..."
+        if docker compose version >/dev/null 2>&1; then docker compose down --remove-orphans
+        elif command -v docker-compose >/dev/null 2>&1; then docker-compose down --remove-orphans; fi
+        left="$(docker ps -aq --filter ancestor=tassel-app --filter label=com.docker.compose.project="tassel-$SLOT" 2>/dev/null)"
+      else
+        # No slot given: clear EVERY ceremony on this PC.
+        echo "Stopping all ceremonies on this PC..."
+        if docker compose version >/dev/null 2>&1; then docker compose down --remove-orphans
+        elif command -v docker-compose >/dev/null 2>&1; then docker-compose down --remove-orphans; fi
+        # Fallback: force-remove anything still based on the tassel-app image (matched by IMAGE, not
+        # by project) — catches every tassel-N stack, even one under a different project name.
+        left="$(docker ps -aq --filter ancestor=tassel-app 2>/dev/null)"
+      fi
+      if [ -n "$left" ]; then
+        echo "Force-removing leftover ceremony container(s)..."
+        docker rm -f $left >/dev/null 2>&1 || true
+      fi
+    else
+      echo "Docker engine isn't running — no containers to stop."
     fi
     echo "Stopped."
     ;;

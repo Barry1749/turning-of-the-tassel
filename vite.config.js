@@ -34,7 +34,9 @@ export default defineConfig({
   // `npm run dev`. Pinned to 4173 so `npm run share` can tunnel a known port.
   preview: {
     host: true,
-    port: 4173,
+    // WEB_PORT lets native mode run several ceremonies on one PC, each on its own port (Docker maps
+    // the port on the host side instead, so its container keeps the 4173 default). Falls back to 4173.
+    port: process.env.WEB_PORT ? Number(process.env.WEB_PORT) : 4173,
     strictPort: true,
     allowedHosts: true,
     proxy,

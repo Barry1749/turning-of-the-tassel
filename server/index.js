@@ -34,6 +34,11 @@ const newToken = () => randomBytes(24).toString('base64url');
 // the app with ?t=<hostToken> to reach the MC console.
 const hostToken = newToken();
 
+// The MC's display name. Defaults to "Master of Ceremony"; the MC can rename themselves (setName)
+// — useful when they're also the professor and want their real name on their tile. Kept here (not
+// in `state`, like hostToken) so it persists across the MC's reconnects within a server run.
+let hostName = 'Master of Ceremony';
+
 // degree drives the tassel colour (bachelor | master | phd); the MC can change it per student.
 const SAMPLE_ROSTER = ['Mei-Ling Chen', 'Wei Kang', 'Sofia Rossi', 'Arjun Patel'].map((name) => ({
   id: randomUUID(),
@@ -139,7 +144,7 @@ function stateFor(role) {
 // student / professor; an unknown token → null (rejected).
 function resolveToken(token) {
   if (!token) return null;
-  if (token === hostToken) return { role: 'mc', name: 'Master of Ceremony' };
+  if (token === hostToken) return { role: 'mc', name: hostName };
   if (token === state.guestToken) return { role: 'guest', name: 'Guest' };
   const s = state.roster.find((x) => x.token === token);
   if (s) return { role: 'student', name: s.name };
@@ -181,7 +186,13 @@ function broadcastParticipants() {
 // the boundary (flaky wifi rejoining) can't thrash the whole room between transports. Counts
 // everyone — students, professor, MC, guests. Returns true if the mode actually changed.
 const MESH_MAX = 6; // the P2P mesh comfortably carries up to this many participants
+// Auto-promotion from the free P2P mesh to the LiveKit SFU (when the headcount outgrows the mesh)
+// is DISABLED per request — the room stays on P2P at any size. The LiveKit code is deliberately
+// KEPT (the useLiveKit hook, the /token endpoint, and the 'livekit' branch below all remain): flip
+// this flag back to true to re-enable the fallback, no other change needed.
+const AUTO_LIVEKIT_FALLBACK = false;
 function updateVideoMode() {
+  if (!AUTO_LIVEKIT_FALLBACK) return false; // fallback off → never leave P2P (LiveKit code retained)
   if (!liveKitConfigured) return false; // no SFU available → stay on P2P regardless of count
   const n = participantList().length;
   let next = state.videoMode;
@@ -270,6 +281,32 @@ wss.on('connection', (ws) => {
       }
 
       // ---- host-only controls ----
+      // The MC (who holds the secret host token) toggles their OWN professor capability on/off:
+      //   'host' = professor + MC — own camera, the hand-gesture tassel turn, and an on-camera tile;
+      //   'mc'   = run-the-show only, no camera.
+      // Gated to a client that is ALREADY mc/host, so a student/professor/guest can't self-promote.
+      case 'claimProfessor': {
+        if (me.role !== 'mc' && me.role !== 'host') break;
+        me.role = msg.on ? 'host' : 'mc';
+        // Re-send THIS client its identity with the new role — the client re-renders (camera on/off,
+        // gesture loop, its own tile). Tell everyone else too, so the tile appears / disappears.
+        send(ws, { type: 'welcome', id: me.id, role: me.role, name: me.name, state: stateFor(me.role) });
+        broadcastParticipants();
+        break;
+      }
+      // MC renames themselves (e.g. so the professor tile shows a real name, not "Master of
+      // Ceremony"). Only the MC/host may — a student's name comes from the roster. Stored in
+      // hostName so it also survives the MC's reconnects.
+      case 'setName': {
+        if (me.role !== 'mc' && me.role !== 'host') break;
+        const nm = String(msg.name || '').trim().slice(0, 60);
+        if (!nm) break;
+        hostName = nm;
+        me.name = nm;
+        send(ws, { type: 'welcome', id: me.id, role: me.role, name: me.name, state: stateFor(me.role) });
+        broadcastParticipants();
+        break;
+      }
       case 'setMode': {
         if (!isHost(me)) break;
         state.mode = msg.mode === 'ceremony' ? 'ceremony' : 'normal';

@@ -10,7 +10,7 @@
 // and the command-line / one-click launchers all run the ceremony the same way. Join mode just
 // loads the public invite link in a window with camera access granted.
 
-const { app, BrowserWindow, session, ipcMain } = require('electron');
+const { app, BrowserWindow, session, ipcMain, clipboard } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -37,6 +37,8 @@ let chooserWin = null;
 let appWin = null;     // the host console / join window
 let hostProc = null;   // the `ceremony start` child (exits after printing the link; the stack stays up)
 let hosting = false;
+let hostSlot = 0;      // the ceremony "slot" this app instance started, so Stop tears down just ours
+                       // (multiple ceremonies can run on one PC — see scripts/ceremony.ps1 Get-FreeSlot)
 
 // Grant the permissions the ceremony needs to our own windows; deny everything else.
 // 'media' = camera/mic for the video call. The clipboard ones let the MC panel's copy-link
@@ -124,6 +126,7 @@ function spawnCeremony(o, spawnOpts = {}) {
       if (o.runtime === 'native') args.push('-Runtime', 'native');
       if (o.local) args.push('-NoTunnel');
     }
+    if (o.action === 'stop' && o.slot) args.push('-Slot', String(o.slot));
   } else {
     cmd = 'bash';
     args = [SH, o.action];
@@ -132,6 +135,7 @@ function spawnCeremony(o, spawnOpts = {}) {
       if (o.runtime === 'native') args.push('--native');
       if (o.local) args.push('--local');
     }
+    if (o.action === 'stop' && o.slot) args.push('--slot', String(o.slot));
   }
   const child = spawn(cmd, args, { cwd: repoRoot, ...spawnOpts });
   child.on('error', (err) => sendStatus('Could not run the ceremony helper: ' + (err && err.message)));
@@ -143,8 +147,13 @@ ipcMain.handle('host', (_e, opts) => {
   if (hosting) return { ok: false, error: 'Already running.' };
   const runtime = opts && opts.runtime === 'native' ? 'native' : 'docker';
   const local = !!(opts && opts.local);
+  // Default true so the existing behaviour (open the MC console here automatically) is unchanged.
+  // The chooser's checkbox can turn it off: then we just start the stack and hand back the MC link
+  // so the host can join when/where they like (here, or pasted into any browser / another device).
+  const autoJoin = !opts || opts.autoJoin !== false;
 
   hosting = true;
+  hostSlot = 0; // set once the launcher prints SLOT=N below
   sendStatus(`Starting ${runtime}${local ? ' (local only)' : ' (public link)'} — first run can take a few minutes...`);
 
   let buf = '';
@@ -155,13 +164,22 @@ ipcMain.handle('host', (_e, opts) => {
     const text = d.toString();
     buf += text;
     text.split(/\r?\n/).forEach((line) => { if (line.trim()) sendStatus(line.trim()); });
+    const sm = buf.match(/SLOT=(\d+)/);
+    if (sm) hostSlot = Number(sm[1]); // remember our slot so Stop tears down only this ceremony
     if (!opened) {
       const m = buf.match(/MCLINK=(\S+)/);
       if (m) {
         opened = true;
-        sendStatus('Ready: ' + m[1]);
-        openAppWindow(m[1], 'MC Console');
-        if (chooserWin && !chooserWin.isDestroyed()) chooserWin.hide();
+        const link = m[1];
+        // Always hand the MC link to the chooser so it can be shown / copied / used to join later.
+        if (chooserWin && !chooserWin.isDestroyed()) chooserWin.webContents.send('mclink', link);
+        if (autoJoin) {
+          sendStatus('Ready: ' + link);
+          openAppWindow(link, 'MC Console');
+          if (chooserWin && !chooserWin.isDestroyed()) chooserWin.hide();
+        } else {
+          sendStatus('Ready — the ceremony is running. Use the MC link below to join (here, or in any browser).');
+        }
       }
     }
   };
@@ -175,12 +193,25 @@ ipcMain.handle('host', (_e, opts) => {
   return { ok: true };
 });
 
-// Best-effort teardown of a running ceremony (Stop button, and on quit).
-function stopCeremony() {
-  spawnCeremony({ action: 'stop' }, { detached: true, stdio: 'ignore' }).unref();
+// Best-effort teardown of a running ceremony. The Stop BUTTON streams the helper's real output to
+// the chooser (so a teardown that failed or did extra cleanup is visible, not a blind "Stopped.").
+// On QUIT we fire-and-forget detached, so the teardown outlives the closing app.
+function stopCeremony({ detached = false } = {}) {
+  if (detached) {
+    spawnCeremony({ action: 'stop', slot: hostSlot }, { detached: true, stdio: 'ignore' }).unref();
+    return;
+  }
+  const proc = spawnCeremony({ action: 'stop', slot: hostSlot });
+  const onData = (d) => d.toString().split(/\r?\n/).forEach((line) => { if (line.trim()) sendStatus(line.trim()); });
+  if (proc.stdout) proc.stdout.on('data', onData);
+  if (proc.stderr) proc.stderr.on('data', onData);
 }
 
-ipcMain.handle('stop', () => { stopCeremony(); hosting = false; return { ok: true }; });
+ipcMain.handle('stop', () => { stopCeremony(); hosting = false; hostSlot = 0; return { ok: true }; });
+
+// Copy text (the MC link) to the clipboard from the main process — robust regardless of the
+// chooser renderer's clipboard-permission / user-gesture state.
+ipcMain.handle('copy', (_e, text) => { clipboard.writeText(String(text || '')); return { ok: true }; });
 
 app.whenReady().then(() => {
   configurePermissions();
@@ -188,5 +219,5 @@ app.whenReady().then(() => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createChooser(); });
 });
 
-app.on('before-quit', () => { if (hosting) stopCeremony(); });
+app.on('before-quit', () => { if (hosting) stopCeremony({ detached: true }); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

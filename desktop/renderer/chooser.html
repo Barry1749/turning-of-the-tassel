@@ -19,6 +19,8 @@
     label { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; }
     input[type=text]{ width:100%; padding:9px 10px; border-radius:8px; border:1px solid #444; background:#1b1c20; color:var(--fg); font-size:13px; }
     .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+    .mclink { display:flex; flex-direction:column; gap:8px; border-top:1px solid #3a3d45; padding-top:12px; }
+    .mclink b { color:var(--fg); }
     button { border:none; border-radius:8px; padding:11px 16px; font-size:14px; font-weight:600; cursor:pointer; color:#fff; }
     button:disabled { opacity:.5; cursor:default; }
     .primary { background:var(--green); }
@@ -45,9 +47,19 @@
           <label><input type="radio" name="runtime" value="native" /> Native (Node)</label>
         </div>
         <label><input type="checkbox" id="local" /> Local only (this computer; no public link)</label>
+        <label><input type="checkbox" id="autoJoin" checked /> Open the MC console here automatically</label>
         <div class="row">
           <button class="primary" id="hostBtn">▶ Start hosting</button>
           <button class="danger" id="stopBtn">■ Stop</button>
+        </div>
+        <!-- Shown when "open automatically" is OFF: the host's private MC link, to open here or paste elsewhere. -->
+        <div class="mclink" id="mclinkBox" hidden>
+          <p>Your <b>MC link</b> — keep it private; it controls the ceremony:</p>
+          <input type="text" id="mclinkInput" readonly />
+          <div class="row">
+            <button class="primary" id="openMcBtn">Open MC console →</button>
+            <button class="ghost" id="copyMcBtn">Copy link</button>
+          </div>
         </div>
       </section>
 

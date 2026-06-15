@@ -200,12 +200,35 @@ button.link {
 /* ---------- Gallery ---------- */
 .gallery {
   flex: 1;
-  display: grid;
-  gap: 10px;
+  min-height: 0; /* let it shrink inside the flex column so the grid can size to the real height */
   padding: 12px;
-  overflow: auto;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  align-content: start;
+}
+/* Google-Meet-style grid: every tile is sized via --tile-w (computed in Gallery.jsx, fitTileWidth)
+   so the whole set fits the stage with NO scrolling — two phones-portrait tiles share the height
+   instead of the second falling below the fold. flex-wrap + centering keeps a partial last row
+   centred, the way Meet does. */
+.gallery.grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  align-items: center; /* never stretch a tile's height — its 4:3 size is set explicitly below */
+  gap: 10px; /* keep in sync with GAP in Gallery.jsx */
+  overflow: hidden;
+}
+/* Reserve space for the floating mic/camera bar (shown only to on-camera participants) so it never
+   covers the bottom row. The grid measures its content box, so this padding is excluded from the fit. */
+.gallery.grid.has-controls {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+.gallery.grid .tile {
+  width: var(--tile-w, 240px); /* fallback for the first paint, before the fit is measured */
+  /* Height set EXPLICITLY (not via aspect-ratio): iOS/iPadOS Safari ignores a flex item's
+     aspect-ratio when sizing the flex line, so the tile collapses to its content height — a very
+     wide, very short strip. An explicit height is a definite cross size: always honored, never
+     stretched. Keep it == width × 3/4 so it matches the 4:3 the fit math (fitTileWidth) assumes. */
+  height: calc(var(--tile-w, 240px) * 3 / 4);
+  flex: 0 0 auto;
 }
 .tile {
   position: relative;
@@ -375,9 +398,13 @@ button.link {
 }
 
 /* ---------- Media controls (Meet-style camera / mic toggle) ---------- */
+/* position:fixed (not absolute) so the bar is pinned to the real visible viewport — on mobile the
+   browser's dynamic toolbars make .app's 100vh taller than what's on screen, which would otherwise
+   let an absolutely-positioned bar drift below the fold. The safe-area inset lifts it above the
+   iOS/Android home indicator. */
 .media-controls {
-  position: absolute;
-  bottom: 18px;
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -417,6 +444,22 @@ button.link {
   width: 24px;
   height: 24px;
   display: block;
+}
+/* Scale the bar down on phones so it stays a comfortable thumb-size without crowding the stage. */
+@media (max-width: 480px) {
+  .media-controls {
+    gap: 10px;
+    padding: 8px 10px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .media-btn {
+    width: 46px;
+    height: 46px;
+  }
+  .media-btn svg {
+    width: 22px;
+    height: 22px;
+  }
 }
 
 /* ---------- Spotlight ---------- */

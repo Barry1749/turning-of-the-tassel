@@ -99,6 +99,7 @@ export default function MCPanel({
   cstate,
   actions,
   participants = [],
+  myName,
   canEditRoster,
   guestCount,
   isProfessor,
@@ -111,6 +112,7 @@ export default function MCPanel({
   pinching,
 }) {
   const [open, setOpen] = useState(true);
+  const [nameDraft, setNameDraft] = useState(null); // MC editing their own display name (null = not editing)
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('bachelor'); // role for the next person added: a degree id (student) or 'professor'
   // Video-relay override drafts. The committed value lives in cstate.turnServer (room-wide,
@@ -129,6 +131,14 @@ export default function MCPanel({
   const ceremony = cstate.mode === 'ceremony';
   const current = roster.find((s) => s.id === cstate.currentId) || null;
   const turnActive = cstate.turnServer || null; // the relay override currently in force (null = built-in)
+
+  // The MC's own display name — commit on blur/Enter, and only when it actually changed.
+  const commitName = () => {
+    if (nameDraft === null) return;
+    const nm = nameDraft.trim();
+    setNameDraft(null);
+    if (nm && nm !== (myName || '')) actions.setName(nm);
+  };
 
   const applyTurn = () => {
     const host = turnHost.trim();
@@ -370,6 +380,33 @@ export default function MCPanel({
             <button className={!ceremony ? 'sel' : ''} onClick={() => actions.setMode('normal')}>Gallery</button>
             <button className={ceremony ? 'sel' : ''} onClick={() => actions.setMode('ceremony')}>Ceremony</button>
           </div>
+
+          {/* MC can also act as the professor: turns on this device's camera + the hand-gesture
+              tassel turn, and shows the MC as an on-camera tile. Off = run-the-show only, no camera. */}
+          {canEditRoster && (
+            <label className="mc-check" title="Use your own camera and turn the tassel by hand, like a professor. Leave off to just run the ceremony (no camera).">
+              <input type="checkbox" checked={isProfessor} onChange={(e) => actions.claimProfessor(e.target.checked)} />
+              I'm also the professor
+              {isProfessor && (
+                <span className="mc-camstat">
+                  {camStatus === 'ready' ? 'camera on' : camStatus === 'error' ? 'camera blocked' : 'starting…'}
+                </span>
+              )}
+            </label>
+          )}
+
+          {canEditRoster && (
+            <input
+              className="mc-in"
+              value={nameDraft ?? (myName || '')}
+              placeholder="Your display name"
+              title="Your name as shown on your tile and in the top bar — handy when you're also the professor."
+              onChange={(e) => setNameDraft(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              onBlur={commitName}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+          )}
 
           {canEditRoster && (
             <label className="mc-quality" title="Broadcast video resolution for everyone on camera. Higher looks sharper but needs more bandwidth.">

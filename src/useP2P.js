@@ -251,6 +251,28 @@ export function useP2P({ enabled, myId, myRole, participants, selfStream, send, 
   const peerKey = [...peerList].sort().join(',');
   ctx.current.peerList = peerList; // the reconcile tick below reads the latest roster from here
 
+  // If MY OWN on-camera status flips mid-session (the MC toggling "I'm also the professor"), every
+  // existing peer connection was negotiated for the OLD direction: a viewer's transceivers are
+  // recvonly and can't start sending just because a track appears — flipping direction needs
+  // renegotiation. So tear every connection down and rebuild it with the new direction, which
+  // starts (or stops) my video reaching peers. Skipped on the initial mount (no prior connections).
+  const iSend = onCam(myRole);
+  const iSendRef = useRef(iSend);
+  useEffect(() => {
+    if (!enabled || !myId) return undefined;
+    if (iSendRef.current === iSend) return undefined; // first run, or no real change
+    iSendRef.current = iSend;
+    Object.keys(S.current.pcs).forEach((id) => cleanupPeer(id));
+    // Re-establish using the same initiator rule as reconcile/self-heal: I offer to peers I initiate
+    // to; for the rest I ask them to re-offer (their lower id makes them the initiator).
+    (ctx.current.peerList || []).forEach((id) => {
+      if (myId < id) initiate(id);
+      else ctx.current.send({ type: 'signal', to: id, data: { reoffer: true } });
+    });
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, myId, iSend]);
+
   useEffect(() => {
     if (!enabled || !myId) return undefined;
     const wanted = new Set(peerList);

@@ -23,6 +23,11 @@ x-build: &build
     VITE_ICE_SERVERS: ${VITE_ICE_SERVERS:-}
 
 services:
+  # `api` is the SOLE builder of the shared image; `web` and `tunnel` reuse it (same image, just a
+  # different `command`). Only ONE service may carry `build:` for a shared tag: newer Docker builds
+  # services in parallel via buildx "bake", so two `build:`s on the same tag race to export it and
+  # the containerd image store fails with `image "tassel-app:latest": already exists`. (Older Docker
+  # silently overwrote, which is why this only bit on a fresh PC.) Building once also avoids 3× work.
   api:
     build: *build
     image: tassel-app
@@ -40,7 +45,9 @@ services:
     restart: unless-stopped
 
   web:
-    build: *build
+    # No build: — reuse the image `api` builds. `up --build` builds api first, so the image exists
+    # before this container starts; depends_on keeps the start order. (A second build: would race
+    # api on the identical tag — see the note on api.)
     image: tassel-app
     depends_on: [api]
     command: npm run preview
@@ -51,11 +58,14 @@ services:
     # Optional: expose to the host for same-machine testing on http://localhost:4173.
     # (Camera works on localhost; over a LAN IP it won't — use the tunnel link for remote people.)
     ports:
-      - "4173:4173"
+      # WEB_PORT lets the launcher run several ceremonies on one PC at once, each on its own host
+      # port (auto-assigned per "slot"). Inside the container it's always 4173; only the host side
+      # varies. Defaults to 4173 so a single ceremony is unchanged.
+      - "${WEB_PORT:-4173}:4173"
     restart: unless-stopped
 
   tunnel:
-    build: *build
+    # No build: — reuse the image `api` builds (same reason as web).
     image: tassel-app
     depends_on: [web, api]
     command: node scripts/share.mjs 4173

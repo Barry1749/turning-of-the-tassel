@@ -16,7 +16,7 @@ const procs = [];
 // (e.g. `node scripts/share.mjs 4173`) to tunnel the `vite preview` release build instead.
 // TUNNEL_TARGET overrides the whole URL — e.g. `http://web:4173` when the web server runs in a
 // separate Docker container reachable by service name (see docker-compose.yml).
-const port = process.argv[2] || '5173';
+const port = process.env.WEB_PORT || process.argv[2] || '5173';
 const target = process.env.TUNNEL_TARGET || `http://localhost:${port}`;
 const p = spawn('cloudflared', ['tunnel', '--url', target], { shell: true });
 procs.push(p);
