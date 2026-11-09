@@ -12,6 +12,14 @@ system design see [PLAN.md](PLAN.md); for a hosted production deploy see [DEPLOY
 
 ---
 
+## Demo
+
+A demonstration on iPad:
+
+<img width="400" alt="IMG_1300" src="https://github.com/user-attachments/assets/c969fcb9-f8f0-4fbd-a341-d894f141bb80" />
+
+---
+
 ## 1. One-time setup
 
 You need [Node.js](https://nodejs.org) (v18+). Then, in the project folder:
