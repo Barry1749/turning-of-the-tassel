@@ -16,7 +16,7 @@ system design see [PLAN.md](PLAN.md); for a hosted production deploy see [DEPLOY
 
 A demonstration on iPad:
 
-<img width="400" alt="IMG_1300" src="https://github.com/user-attachments/assets/c969fcb9-f8f0-4fbd-a341-d894f141bb80" />
+<img width="400" alt="699472261-c969fcb9-f8f0-4fbd-a341-d894f141bb80" src="https://github.com/user-attachments/assets/378f66e1-ca2e-4e31-8ebf-869af5c9b643" />
 
 ---
 
