@@ -92,6 +92,8 @@ too — the address simply never changes again.)
   ```
 
 ## D. Install Docker + run coturn — paste this whole block on the server
+**First, invent your own password** and put it in place of `YOUR_TURN_SECRET` (the `user=` line)
+before pasting — don't reuse anyone else's.
 ```bash
 curl -fsSL https://get.docker.com | sudo sh
 mkdir -p ~/coturn && cd ~/coturn

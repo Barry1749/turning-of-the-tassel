@@ -6,6 +6,6 @@ dist-ssr
 *.local
 .ceremony-native.*
 .DS_Store
-# .env is COMMITTED on purpose (the project's default TURN-relay config — see .env.example);
-# machine-local secrets/overrides go in .env.local, which stays ignored via *.local above.
+# Machine-local config/secrets (your TURN relay, LiveKit keys — see .env.example). Never commit.
+.env
 .env.local

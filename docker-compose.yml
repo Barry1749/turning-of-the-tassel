@@ -13,10 +13,10 @@ name: turning-of-the-tassel
 # Why the tunnel matters: browsers only allow the camera over https:// (or localhost), so remote
 # students/professors need the cloudflared HTTPS link — the LAN address over http:// won't work.
 
-# Shared build config for the one image all three services use. VITE_ICE_SERVERS is read from the
-# committed .env next to this file (compose's ${...} substitution; .dockerignore keeps the file
-# itself out of the image) and baked into the client bundle — it's the TURN relay that lets the
-# P2P video cross strict NATs. Override via shell env or .env, then rebuild with --build.
+# Shared build config for the one image all three services use. VITE_ICE_SERVERS is read from your
+# local (gitignored) .env next to this file (compose's ${...} substitution; .dockerignore keeps the
+# file itself out of the image) and baked into the client bundle — it's the TURN relay that lets the
+# P2P video cross strict NATs (unset = STUN-only). Set it via shell env or .env, then rebuild with --build.
 x-build: &build
   context: .
   args:

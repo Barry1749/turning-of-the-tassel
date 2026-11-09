@@ -14,13 +14,15 @@ about US$4–6/month, the smallest size is plenty).
 Copy `turnserver.conf` and `docker-compose.yml` from this folder to the VPS, e.g. into `~/coturn/`.
 Install Docker if needed: `curl -fsSL https://get.docker.com | sh`
 
-## 2. Edit ONE line
+## 2. Edit two lines
 In `turnserver.conf`, set your VPS's public IP:
 
     external-ip=203.0.113.45        # ← your VPS IP
 
-The TURN password is already filled in (`YOUR_TURN_SECRET`). Keep it private, or
-change it — just use the same value in step 6.
+…and replace the placeholder password `YOUR_TURN_SECRET` with your own random one (e.g. the
+output of `openssl rand -hex 16`). Keep it private, and use the same value in steps 5 and 6:
+
+    user=tassel:YOUR_TURN_SECRET    # ← your own password
 
 ## 3. Open the firewall
 Open these in **both** your VPS provider's firewall panel **and** the OS firewall (`ufw`, if on):

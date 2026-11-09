@@ -116,9 +116,10 @@ professors, guests — and if video was stuck, it recovers by itself within a fe
 panel shows *“Video relay · YOUR_IP”* while the override is active; *↺ Built-in* switches back.
 
 The override lasts for the current ceremony (it resets when the host restarts the app). To make
-your relay the **permanent default** instead, edit `.env` at the project root (the desktop app's
-copy lives in `resources\repo\.env`) and replace the server list with yours — same format as the
-test box above — then restart the ceremony.
+your relay the **permanent default** instead, create (or edit) `.env` at the project root (the
+desktop app's copy lives in `resources\repo\.env`; the file is gitignored) with one line,
+`VITE_ICE_SERVERS=[...]`, holding your server list — same format as the test box above — then
+restart the ceremony.
 
 ## Running costs & upkeep
 
